@@ -1,2 +1,2 @@
 # ClaudePlayground
-Playing around iwth Claude
+Playing around with Claude
