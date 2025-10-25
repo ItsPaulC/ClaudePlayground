@@ -119,6 +119,35 @@ public class AuthService : IAuthService
         );
     }
 
+    public async Task<bool> ChangePasswordAsync(string email, ChangePasswordDto changePasswordDto, CancellationToken ct = default)
+    {
+        // Find user by email
+        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
+        User? user = users.FirstOrDefault(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+
+        if (user == null)
+        {
+            return false; // User not found
+        }
+
+        // Verify current password
+        bool isCurrentPasswordValid = BCrypt.Net.BCrypt.Verify(changePasswordDto.CurrentPassword, user.PasswordHash);
+
+        if (!isCurrentPasswordValid)
+        {
+            return false; // Current password is incorrect
+        }
+
+        // Hash new password
+        string newPasswordHash = BCrypt.Net.BCrypt.HashPassword(changePasswordDto.NewPassword);
+
+        // Update password
+        user.PasswordHash = newPasswordHash;
+        await _userRepository.UpdateAsync(user, ct);
+
+        return true;
+    }
+
     private string GenerateJwtToken(User user)
     {
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));

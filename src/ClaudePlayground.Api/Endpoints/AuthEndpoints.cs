@@ -63,6 +63,28 @@ public static class AuthEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
+        group.MapPost("/change-password", async (ChangePasswordDto changePasswordDto, IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
+        {
+            string? email = httpContext.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value;
+
+            if (string.IsNullOrEmpty(email))
+            {
+                return Results.Unauthorized();
+            }
+
+            bool success = await authService.ChangePasswordAsync(email, changePasswordDto, ct);
+
+            if (!success)
+            {
+                return Results.BadRequest(new { message = "Failed to change password. Current password may be incorrect." });
+            }
+
+            return Results.Ok(new { message = "Password changed successfully" });
+        })
+        .WithName("ChangePassword")
+        .WithOpenApi()
+        .RequireAuthorization();
+
         return app;
     }
 }

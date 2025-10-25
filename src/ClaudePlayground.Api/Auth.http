@@ -22,3 +22,14 @@ Content-Type: application/json
 # Replace YOUR_JWT_TOKEN with the token from login response
 GET https://localhost:5001/api/auth/me
 Authorization: Bearer YOUR_JWT_TOKEN
+
+### Change password (requires authentication)
+# Replace YOUR_JWT_TOKEN with the token from login response
+POST https://localhost:5001/api/auth/change-password
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+  "currentPassword": "Test123!",
+  "newPassword": "NewTest456!"
+}
