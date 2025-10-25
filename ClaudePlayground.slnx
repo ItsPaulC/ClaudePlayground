@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src\ClaudePlayground.Api\ClaudePlayground.Api.csproj" Type="C#" />
+    <Project Path="src\ClaudePlayground.Application\ClaudePlayground.Application.csproj" Type="C#" />
+    <Project Path="src\ClaudePlayground.Domain\ClaudePlayground.Domain.csproj" Type="C#" />
+    <Project Path="src\ClaudePlayground.Infrastructure\ClaudePlayground.Infrastructure.csproj" Type="C#" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests\ClaudePlayground.Infrastructure.Tests.Integration\ClaudePlayground.Infrastructure.Tests.Integration.csproj" Type="C#" />
+  </Folder>
+</Solution>

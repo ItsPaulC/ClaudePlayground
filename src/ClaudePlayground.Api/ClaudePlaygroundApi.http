@@ -1,0 +1,6 @@
+@ClaudePlaygroundApi_HostAddress = http://localhost:5168
+
+GET {{ClaudePlaygroundApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
