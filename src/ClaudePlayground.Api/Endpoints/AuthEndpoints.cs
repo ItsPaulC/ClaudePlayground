@@ -85,6 +85,21 @@ public static class AuthEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
+        group.MapPost("/refresh", async (RefreshTokenDto refreshTokenDto, IAuthService authService, CancellationToken ct) =>
+        {
+            AuthResponseDto? response = await authService.RefreshTokenAsync(refreshTokenDto.RefreshToken, ct);
+
+            if (response == null)
+            {
+                return Results.Unauthorized();
+            }
+
+            return Results.Ok(response);
+        })
+        .WithName("RefreshToken")
+        .WithOpenApi()
+        .AllowAnonymous();
+
         return app;
     }
 }

@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Application.DTOs;
@@ -13,11 +14,13 @@ namespace ClaudePlayground.Application.Services;
 public class AuthService : IAuthService
 {
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<RefreshToken> _refreshTokenRepository;
     private readonly JwtSettings _jwtSettings;
 
-    public AuthService(IRepository<User> userRepository, JwtSettings jwtSettings)
+    public AuthService(IRepository<User> userRepository, IRepository<RefreshToken> refreshTokenRepository, JwtSettings jwtSettings)
     {
         _userRepository = userRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _jwtSettings = jwtSettings;
     }
 
@@ -51,8 +54,12 @@ public class AuthService : IAuthService
         // Generate JWT token
         string token = GenerateJwtToken(createdUser);
 
+        // Generate and save refresh token
+        string refreshTokenValue = await GenerateAndSaveRefreshTokenAsync(createdUser.Id, ct);
+
         return new AuthResponseDto(
             token,
+            refreshTokenValue,
             createdUser.Email,
             createdUser.FirstName,
             createdUser.LastName
@@ -90,8 +97,12 @@ public class AuthService : IAuthService
         // Generate JWT token
         string token = GenerateJwtToken(user);
 
+        // Generate and save refresh token
+        string refreshTokenValue = await GenerateAndSaveRefreshTokenAsync(user.Id, ct);
+
         return new AuthResponseDto(
             token,
+            refreshTokenValue,
             user.Email,
             user.FirstName,
             user.LastName
@@ -153,13 +164,13 @@ public class AuthService : IAuthService
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
 
-        Claim[] claims = new[]
-        {
+        Claim[] claims =
+        [
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Sub, user.Email),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+        ];
 
         JwtSecurityToken token = new(
             issuer: _jwtSettings.Issuer,
@@ -170,5 +181,80 @@ public class AuthService : IAuthService
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public async Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken, CancellationToken ct = default)
+    {
+        // Find refresh token in database
+        IEnumerable<RefreshToken> refreshTokens = await _refreshTokenRepository.GetAllAsync(ct);
+        RefreshToken? storedToken = refreshTokens.FirstOrDefault(rt => rt.Token == refreshToken);
+
+        if (storedToken == null)
+        {
+            return null; // Refresh token not found
+        }
+
+        // Check if token is revoked
+        if (storedToken.IsRevoked)
+        {
+            return null; // Token has been revoked
+        }
+
+        // Check if token is expired
+        if (storedToken.ExpiresAt < DateTime.UtcNow)
+        {
+            return null; // Token has expired
+        }
+
+        // Get user
+        User? user = await _userRepository.GetByIdAsync(storedToken.UserId, ct);
+
+        if (user == null || !user.IsActive)
+        {
+            return null; // User not found or inactive
+        }
+
+        // Revoke old refresh token
+        storedToken.IsRevoked = true;
+        storedToken.RevokedAt = DateTime.UtcNow;
+        await _refreshTokenRepository.UpdateAsync(storedToken, ct);
+
+        // Generate new JWT token
+        string newJwtToken = GenerateJwtToken(user);
+
+        // Generate new refresh token
+        string newRefreshToken = await GenerateAndSaveRefreshTokenAsync(user.Id, ct);
+
+        return new AuthResponseDto(
+            newJwtToken,
+            newRefreshToken,
+            user.Email,
+            user.FirstName,
+            user.LastName
+        );
+    }
+
+    private async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
+    {
+        // Generate cryptographically secure random token
+        byte[] randomBytes = new byte[64];
+        using RandomNumberGenerator rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomBytes);
+        string token = Convert.ToBase64String(randomBytes);
+
+        // Create refresh token entity
+        RefreshToken refreshToken = new()
+        {
+            Token = token,
+            UserId = userId,
+            ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
+            IsRevoked = false,
+            TenantId = userId // Using userId as tenant for now
+        };
+
+        // Save to database
+        await _refreshTokenRepository.CreateAsync(refreshToken, ct);
+
+        return token;
     }
 }

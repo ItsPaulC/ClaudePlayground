@@ -33,3 +33,12 @@ Authorization: Bearer YOUR_JWT_TOKEN
   "currentPassword": "Test123!",
   "newPassword": "NewTest456!"
 }
+
+### Refresh access token
+# Replace YOUR_REFRESH_TOKEN with the refreshToken from login/register response
+POST https://localhost:5001/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "YOUR_REFRESH_TOKEN"
+}
