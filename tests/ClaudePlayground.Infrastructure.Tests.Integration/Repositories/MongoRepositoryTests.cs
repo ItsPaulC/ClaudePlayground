@@ -219,7 +219,7 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
             TenantId = "tenant-updatetime",
             Name = "Update Time Test"
         };
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Act
         created.Name = "Modified Name";

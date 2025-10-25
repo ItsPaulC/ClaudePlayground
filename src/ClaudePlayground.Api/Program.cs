@@ -20,7 +20,7 @@ JwtSettings jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<Jw
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        options.TokenValidationParameters = new()
         {
             ValidateIssuer = true,
             ValidateAudience = true,

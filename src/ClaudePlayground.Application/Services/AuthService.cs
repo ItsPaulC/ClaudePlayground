@@ -121,8 +121,8 @@ public class AuthService : IAuthService
 
     private string GenerateJwtToken(User user)
     {
-        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
-        SigningCredentials credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+        SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
 
         Claim[] claims = new[]
         {
@@ -132,7 +132,7 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        JwtSecurityToken token = new JwtSecurityToken(
+        JwtSecurityToken token = new(
             issuer: _jwtSettings.Issuer,
             audience: _jwtSettings.Audience,
             claims: claims,
