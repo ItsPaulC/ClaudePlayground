@@ -1,3 +1,4 @@
+using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Application.Services;
 using ClaudePlayground.Domain.Common;
@@ -25,6 +26,11 @@ public static class DependencyInjection
         services.AddSingleton(mongoSettings);
         services.AddSingleton<MongoDbContext>();
 
+        // JWT Configuration
+        JwtSettings jwtSettings = configuration.GetSection("JwtSettings").Get<JwtSettings>()
+            ?? new();
+        services.AddSingleton(jwtSettings);
+
         // Multi-Tenancy
         services.AddScoped<ITenantProvider, HttpTenantProvider>();
 
@@ -33,6 +39,7 @@ public static class DependencyInjection
 
         // Application Services
         services.AddScoped<IBusinessService, BusinessService>();
+        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }
