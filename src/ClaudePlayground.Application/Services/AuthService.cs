@@ -60,6 +60,7 @@ public class AuthService : IAuthService
         return new AuthResponseDto(
             token,
             refreshTokenValue,
+            createdUser.TenantId,
             createdUser.Email,
             createdUser.FirstName,
             createdUser.LastName
@@ -103,6 +104,7 @@ public class AuthService : IAuthService
         return new AuthResponseDto(
             token,
             refreshTokenValue,
+            user.TenantId,
             user.Email,
             user.FirstName,
             user.LastName
@@ -228,6 +230,7 @@ public class AuthService : IAuthService
         return new AuthResponseDto(
             newJwtToken,
             newRefreshToken,
+            user.TenantId,
             user.Email,
             user.FirstName,
             user.LastName

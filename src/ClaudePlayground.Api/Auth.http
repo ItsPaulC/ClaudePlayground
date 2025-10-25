@@ -1,4 +1,6 @@
 ### Register a new user
+# Response includes: token, refreshToken, tenantId, email, firstName, lastName
+# Use the tenantId in X-Tenant-Id header for subsequent API calls
 POST https://localhost:5001/api/auth/register
 Content-Type: application/json
 
@@ -10,6 +12,8 @@ Content-Type: application/json
 }
 
 ### Login with credentials
+# Response includes: token, refreshToken, tenantId, email, firstName, lastName
+# Use the tenantId in X-Tenant-Id header for subsequent API calls
 POST https://localhost:5001/api/auth/login
 Content-Type: application/json
 
@@ -42,3 +46,10 @@ Content-Type: application/json
 {
   "refreshToken": "YOUR_REFRESH_TOKEN"
 }
+
+### Example: Using TenantId in Business API calls
+# After login/register, use the tenantId from the response in X-Tenant-Id header
+# This ensures multi-tenant data isolation
+GET https://localhost:5001/api/businesses
+Authorization: Bearer YOUR_JWT_TOKEN
+X-Tenant-Id: YOUR_TENANT_ID
