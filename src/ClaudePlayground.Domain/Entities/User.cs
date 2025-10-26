@@ -19,6 +19,9 @@ public class User : BaseEntity
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
 
+    [BsonElement("roles")]
+    public List<string> Roles { get; set; } = new();
+
     [BsonElement("lastLoginAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? LastLoginAt { get; set; }

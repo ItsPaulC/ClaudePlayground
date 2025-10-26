@@ -4,5 +4,6 @@ public record RegisterDto(
     string Email,
     string Password,
     string? FirstName,
-    string? LastName
+    string? LastName,
+    List<string>? Roles = null
 );

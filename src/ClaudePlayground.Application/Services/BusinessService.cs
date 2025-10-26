@@ -10,11 +10,13 @@ public class BusinessService : IBusinessService
 {
     private readonly IRepository<Business> _repository;
     private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserService _currentUserService;
 
-    public BusinessService(IRepository<Business> repository, ITenantProvider tenantProvider)
+    public BusinessService(IRepository<Business> repository, ITenantProvider tenantProvider, ICurrentUserService currentUserService)
     {
         _repository = repository;
         _tenantProvider = tenantProvider;
+        _currentUserService = currentUserService;
     }
 
     public async Task<BusinessDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
@@ -34,7 +36,15 @@ public class BusinessService : IBusinessService
     {
         IEnumerable<Business> entities = await _repository.GetAllAsync(cancellationToken);
 
-        // Filter by current tenant
+        // Super-users can see all businesses (cross-tenant access)
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUser);
+
+        if (isSuperUser)
+        {
+            return entities.Select(MapToDto);
+        }
+
+        // Other users filtered by tenant (shouldn't reach here due to endpoint authorization)
         string currentTenantId = _tenantProvider.GetTenantId();
         return entities
             .Where(e => e.TenantId == currentTenantId)
@@ -62,9 +72,21 @@ public class BusinessService : IBusinessService
     {
         Business? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
-        if (entity == null || entity.TenantId != _tenantProvider.GetTenantId())
+        if (entity == null)
         {
             throw new KeyNotFoundException($"Business with ID {id} not found");
+        }
+
+        // Check authorization
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUser);
+        bool isAdmin = _currentUserService.IsInRole(Roles.Admin);
+        string currentTenantId = _tenantProvider.GetTenantId();
+
+        // Super-users can update any business
+        // Admins can only update businesses in their own tenant
+        if (!isSuperUser && (!isAdmin || entity.TenantId != currentTenantId))
+        {
+            throw new UnauthorizedAccessException("You do not have permission to update this business");
         }
 
         entity.Name = dto.Name;

@@ -46,6 +46,7 @@ public class AuthService : IAuthService
             FirstName = registerDto.FirstName,
             LastName = registerDto.LastName,
             IsActive = true,
+            Roles = registerDto.Roles ?? new List<string>(),
             TenantId = registerDto.Email.ToLowerInvariant() // Use email as tenant ID for now
         };
 
@@ -166,13 +167,19 @@ public class AuthService : IAuthService
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
 
-        Claim[] claims =
-        [
+        List<Claim> claims = new()
+        {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Sub, user.Email),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        ];
+        };
+
+        // Add role claims
+        foreach (string role in user.Roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
 
         JwtSecurityToken token = new(
             issuer: _jwtSettings.Issuer,

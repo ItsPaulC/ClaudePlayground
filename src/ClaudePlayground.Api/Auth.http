@@ -1,4 +1,4 @@
-### Register a new user
+### Register a new user (no roles - regular user)
 # Response includes: token, refreshToken, tenantId, email, firstName, lastName
 # Use the tenantId in X-Tenant-Id header for subsequent API calls
 POST https://localhost:5001/api/auth/register
@@ -9,6 +9,37 @@ Content-Type: application/json
   "password": "Test123!",
   "firstName": "John",
   "lastName": "Doe"
+}
+
+### Register a super-user
+# Super-users can:
+# - Create businesses (cross-tenant)
+# - Get all businesses (cross-tenant)
+# - Update any business (cross-tenant)
+# - Delete any business (cross-tenant)
+POST https://localhost:5001/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "superuser@example.com",
+  "password": "SuperUser123!",
+  "firstName": "Super",
+  "lastName": "User",
+  "roles": ["super-user"]
+}
+
+### Register an admin
+# Admins can:
+# - Update businesses only within their own tenant
+POST https://localhost:5001/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "Admin123!",
+  "firstName": "Admin",
+  "lastName": "User",
+  "roles": ["admin"]
 }
 
 ### Login with credentials
