@@ -31,6 +31,24 @@ public static class BusinessEndpoints
         .WithName("GetBusinessById")
         .WithOpenApi();
 
+        // Create Business with Super-user - Public endpoint (no auth required)
+        app.MapPost("/api/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
+        {
+            try
+            {
+                BusinessWithUserDto result = await service.CreateWithUserAsync(dto, ct);
+                return Results.Created($"/api/businesses/{result.Business.Id}", result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        })
+        .WithName("CreateBusinessWithUser")
+        .WithOpenApi()
+        .WithTags("Businesses")
+        .AllowAnonymous();
+
         // Create Business - Super-user only
         group.MapPost("/", async (CreateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
         {

@@ -1,0 +1,89 @@
+### Create Business with Super-user (Public endpoint - no authentication required)
+# This creates a new business tenant and a super-user for that tenant
+# The business ID becomes the tenant ID for the business
+# Response includes: business details, user ID, token, and refresh token
+POST https://localhost:5001/api/businesses/with-user
+Content-Type: application/json
+
+{
+  "name": "Acme Corporation",
+  "description": "Leading provider of innovative solutions",
+  "address": {
+    "street": "123 Main Street",
+    "city": "New York",
+    "state": "NY",
+    "zipCode": "10001",
+    "country": "USA"
+  },
+  "phoneNumber": "+1-555-0100",
+  "email": "contact@acme.com",
+  "website": "https://acme.com",
+  "userEmail": "admin@acme.com",
+  "userPassword": "SecurePassword123!",
+  "userFirstName": "John",
+  "userLastName": "Smith"
+}
+
+### Get All Businesses (Requires super-user role)
+# Replace YOUR_JWT_TOKEN with the token from business creation or login
+GET https://localhost:5001/api/businesses
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### Get Business by ID (Requires authentication and tenant access)
+# Replace BUSINESS_ID with the actual business ID
+# Replace YOUR_JWT_TOKEN with the token from business creation or login
+GET https://localhost:5001/api/businesses/BUSINESS_ID
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### Create Business (Requires super-user role)
+# This endpoint is for super-users to create additional businesses
+# Replace YOUR_JWT_TOKEN with a super-user token
+POST https://localhost:5001/api/businesses
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+  "name": "Another Business",
+  "description": "Another business description",
+  "address": {
+    "street": "456 Oak Avenue",
+    "city": "Los Angeles",
+    "state": "CA",
+    "zipCode": "90001",
+    "country": "USA"
+  },
+  "phoneNumber": "+1-555-0200",
+  "email": "contact@another.com",
+  "website": "https://another.com"
+}
+
+### Update Business (Requires super-user or admin role)
+# Super-users can update any business
+# Admins can only update businesses in their own tenant
+# Replace BUSINESS_ID with the actual business ID
+# Replace YOUR_JWT_TOKEN with the token from business creation or login
+PUT https://localhost:5001/api/businesses/BUSINESS_ID
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+  "name": "Updated Business Name",
+  "description": "Updated description",
+  "address": {
+    "street": "789 Pine Road",
+    "city": "Chicago",
+    "state": "IL",
+    "zipCode": "60601",
+    "country": "USA"
+  },
+  "phoneNumber": "+1-555-0300",
+  "email": "updated@business.com",
+  "website": "https://updated.com",
+  "isActive": true
+}
+
+### Delete Business (Requires super-user role)
+# Replace BUSINESS_ID with the actual business ID
+# Replace YOUR_JWT_TOKEN with a super-user token
+DELETE https://localhost:5001/api/businesses/BUSINESS_ID
+Authorization: Bearer YOUR_JWT_TOKEN

@@ -1,4 +1,11 @@
+### RECOMMENDED: Create a new business with super-user
+# See Business.http for the /api/businesses/with-user endpoint
+# This is the recommended way to create a new tenant and its first user
+# The business ID becomes the tenant ID
+
 ### Register a new user (no roles - regular user)
+# NOTE: When registering, the user's tenantId will be their email (legacy behavior)
+# For proper multi-tenant setup, use the Business creation endpoint instead
 # Response includes: token, refreshToken, tenantId, email, firstName, lastName
 # Use the tenantId in X-Tenant-Id header for subsequent API calls
 POST https://localhost:5001/api/auth/register
