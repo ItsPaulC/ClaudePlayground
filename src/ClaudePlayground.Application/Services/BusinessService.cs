@@ -55,7 +55,7 @@ public class BusinessService : IBusinessService
         IEnumerable<Business> entities = await _repository.GetAllAsync(cancellationToken);
 
         // Super-users can see all businesses (cross-tenant access)
-        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUser);
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
 
         if (isSuperUser)
         {
@@ -154,8 +154,8 @@ public class BusinessService : IBusinessService
         }
 
         // Check authorization
-        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUser);
-        bool isAdmin = _currentUserService.IsInRole(Roles.Admin);
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isAdmin = _currentUserService.IsInRole(Roles.AdminValue);
         string currentTenantId = _tenantProvider.GetTenantId();
 
         // Super-users can update any business
@@ -254,9 +254,9 @@ public class BusinessService : IBusinessService
         };
 
         // Add role claims
-        foreach (string role in user.Roles)
+        foreach (var role in user.Roles)
         {
-            claims.Add(new Claim(ClaimTypes.Role, role));
+            claims.Add(new Claim(ClaimTypes.Role, role.Value));
         }
 
         JwtSecurityToken token = new(

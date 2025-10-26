@@ -46,7 +46,7 @@ public class AuthService : IAuthService
             FirstName = registerDto.FirstName,
             LastName = registerDto.LastName,
             IsActive = true,
-            Roles = registerDto.Roles ?? new List<string>(),
+            Roles = registerDto.Roles ?? [],
             TenantId = registerDto.Email.ToLowerInvariant() // Use email as tenant ID for now
         };
 
@@ -128,6 +128,7 @@ public class AuthService : IAuthService
             user.FirstName,
             user.LastName,
             user.IsActive,
+            user.Roles,
             user.LastLoginAt,
             user.CreatedAt
         );
@@ -176,9 +177,9 @@ public class AuthService : IAuthService
         };
 
         // Add role claims
-        foreach (string role in user.Roles)
+        foreach (var role in user.Roles)
         {
-            claims.Add(new Claim(ClaimTypes.Role, role));
+            claims.Add(new Claim(ClaimTypes.Role, role.Value));
         }
 
         JwtSecurityToken token = new(

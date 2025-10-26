@@ -20,7 +20,7 @@ public static class BusinessEndpoints
         })
         .WithName("GetAllBusinesses")
         .WithOpenApi()
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUser));
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Get Business by ID - Authenticated users (tenant-scoped)
         group.MapGet("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
@@ -46,7 +46,7 @@ public static class BusinessEndpoints
         .WithName("CreateBusinessWithUser")
         .WithOpenApi()
         .WithTags("Businesses")
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUser));
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Create Business - Super-user only
         group.MapPost("/", async (CreateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
@@ -56,7 +56,7 @@ public static class BusinessEndpoints
         })
         .WithName("CreateBusiness")
         .WithOpenApi()
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUser));
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Update Business - Super-user (any) or Admin (own tenant only)
         group.MapPut("/{id}", async (string id, UpdateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
@@ -77,7 +77,7 @@ public static class BusinessEndpoints
         })
         .WithName("UpdateBusiness")
         .WithOpenApi()
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUser, Roles.Admin));
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.AdminValue));
 
         // Delete Business - Super-user only
         group.MapDelete("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
@@ -87,7 +87,7 @@ public static class BusinessEndpoints
         })
         .WithName("DeleteBusiness")
         .WithOpenApi()
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUser));
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         return app;
     }

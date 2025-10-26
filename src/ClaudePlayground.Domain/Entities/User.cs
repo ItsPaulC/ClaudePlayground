@@ -1,3 +1,4 @@
+using ClaudePlayground.Domain.ValueObjects;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace ClaudePlayground.Domain.Entities;
@@ -20,7 +21,7 @@ public class User : BaseEntity
     public bool IsActive { get; set; } = true;
 
     [BsonElement("roles")]
-    public List<string> Roles { get; set; } = new();
+    public IEnumerable<Role> Roles { get; set; } = [];
 
     [BsonElement("lastLoginAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]

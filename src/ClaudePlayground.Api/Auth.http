@@ -24,6 +24,7 @@ Content-Type: application/json
 # - Get all businesses (cross-tenant)
 # - Update any business (cross-tenant)
 # - Delete any business (cross-tenant)
+# Roles are now objects with name, abbreviation, and value properties
 POST https://localhost:5001/api/auth/register
 Content-Type: application/json
 
@@ -32,12 +33,19 @@ Content-Type: application/json
   "password": "SuperUser123!",
   "firstName": "Super",
   "lastName": "User",
-  "roles": ["super-user"]
+  "roles": [
+    {
+      "name": "Super User",
+      "abbreviation": "SU",
+      "value": "super-user"
+    }
+  ]
 }
 
 ### Register an admin
 # Admins can:
 # - Update businesses only within their own tenant
+# Roles are now objects with name, abbreviation, and value properties
 POST https://localhost:5001/api/auth/register
 Content-Type: application/json
 
@@ -46,7 +54,13 @@ Content-Type: application/json
   "password": "Admin123!",
   "firstName": "Admin",
   "lastName": "User",
-  "roles": ["admin"]
+  "roles": [
+    {
+      "name": "Administrator",
+      "abbreviation": "ADM",
+      "value": "admin"
+    }
+  ]
 }
 
 ### Login with credentials

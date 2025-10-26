@@ -1,3 +1,5 @@
+using ClaudePlayground.Domain.ValueObjects;
+
 namespace ClaudePlayground.Application.DTOs;
 
 public record UserDto(
@@ -6,6 +8,7 @@ public record UserDto(
     string? FirstName,
     string? LastName,
     bool IsActive,
+    IEnumerable<Role> Roles,
     DateTime? LastLoginAt,
     DateTime CreatedAt
 );
