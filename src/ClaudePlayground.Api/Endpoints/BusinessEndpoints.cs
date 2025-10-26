@@ -31,7 +31,6 @@ public static class BusinessEndpoints
         .WithName("GetBusinessById")
         .WithOpenApi();
 
-        // Create Business with Super-user - Public endpoint (no auth required)
         app.MapPost("/api/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
         {
             try
@@ -47,7 +46,7 @@ public static class BusinessEndpoints
         .WithName("CreateBusinessWithUser")
         .WithOpenApi()
         .WithTags("Businesses")
-        .AllowAnonymous();
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUser));
 
         // Create Business - Super-user only
         group.MapPost("/", async (CreateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
