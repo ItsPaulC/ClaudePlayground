@@ -17,7 +17,21 @@ public class CurrentUserService : ICurrentUserService
 
     public string? Email => _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
 
-    public string TenantId => _httpContextAccessor.HttpContext?.Request?.Headers["X-Tenant-Id"].FirstOrDefault() ?? string.Empty;
+    public string TenantId
+    {
+        get
+        {
+            // Try to get from JWT claim first
+            string? tenantFromClaim = _httpContextAccessor.HttpContext?.User?.FindFirst("ten")?.Value;
+            if (!string.IsNullOrEmpty(tenantFromClaim))
+            {
+                return tenantFromClaim;
+            }
+
+            // Fall back to header for backward compatibility
+            return _httpContextAccessor.HttpContext?.Request?.Headers["X-Tenant-Id"].FirstOrDefault() ?? string.Empty;
+        }
+    }
 
     public IEnumerable<string> Roles
     {
