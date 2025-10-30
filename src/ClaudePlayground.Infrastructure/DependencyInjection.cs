@@ -38,6 +38,9 @@ public static class DependencyInjection
         // Current User Service
         services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+        // Email Service
+        services.AddScoped<IEmailService, ConsoleEmailService>();
+
         // Repository Registration
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
 

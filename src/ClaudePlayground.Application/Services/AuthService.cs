@@ -17,12 +17,18 @@ public class AuthService : IAuthService
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<RefreshToken> _refreshTokenRepository;
     private readonly JwtSettings _jwtSettings;
+    private readonly IEmailService _emailService;
 
-    public AuthService(IRepository<User> userRepository, IRepository<RefreshToken> refreshTokenRepository, JwtSettings jwtSettings)
+    public AuthService(
+        IRepository<User> userRepository,
+        IRepository<RefreshToken> refreshTokenRepository,
+        JwtSettings jwtSettings,
+        IEmailService emailService)
     {
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _jwtSettings = jwtSettings;
+        _emailService = emailService;
     }
 
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto registerDto, CancellationToken ct = default)
@@ -39,6 +45,9 @@ public class AuthService : IAuthService
         // Hash the password
         string passwordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
 
+        // Generate email verification token
+        string verificationToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
         // Create new user
         User user = new()
         {
@@ -47,6 +56,9 @@ public class AuthService : IAuthService
             FirstName = registerDto.FirstName,
             LastName = registerDto.LastName,
             IsActive = true,
+            IsEmailVerified = false,
+            EmailVerificationToken = verificationToken,
+            EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddHours(24), // Token expires in 24 hours
             Roles = registerDto.Roles ?? [],
             TenantId = registerDto.Email.ToLowerInvariant() // Use email as tenant ID for now
         };
@@ -62,20 +74,46 @@ public class AuthService : IAuthService
             return null; // User already exists
         }
 
-        // Generate JWT token
-        string token = GenerateJwtToken(createdUser);
+        // Send verification email
+        await _emailService.SendEmailVerificationAsync(createdUser.Email, verificationToken, ct);
 
-        // Generate and save refresh token
-        string refreshTokenValue = await GenerateAndSaveRefreshTokenAsync(createdUser.Id, ct);
+        // Return null - user must verify email before they can login
+        // The calling endpoint should return a message instructing user to check their email
+        return null;
+    }
 
-        return new AuthResponseDto(
-            token,
-            refreshTokenValue,
-            createdUser.TenantId,
-            createdUser.Email,
-            createdUser.FirstName,
-            createdUser.LastName
-        );
+    public async Task<bool> VerifyEmailAsync(string token, CancellationToken ct = default)
+    {
+        // Find user by verification token
+        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
+        User? user = users.FirstOrDefault(u => u.EmailVerificationToken == token);
+
+        if (user == null)
+        {
+            return false; // Invalid token
+        }
+
+        // Check if token has expired
+        if (user.EmailVerificationTokenExpiresAt == null || user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
+        {
+            return false; // Token expired
+        }
+
+        // Check if email is already verified
+        if (user.IsEmailVerified)
+        {
+            return true; // Already verified
+        }
+
+        // Mark email as verified and clear the token
+        user.IsEmailVerified = true;
+        user.EmailVerificationToken = null;
+        user.EmailVerificationTokenExpiresAt = null;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _userRepository.UpdateAsync(user, ct);
+
+        return true;
     }
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto loginDto, CancellationToken ct = default)
@@ -95,6 +133,12 @@ public class AuthService : IAuthService
         if (!isPasswordValid)
         {
             return null; // Invalid password
+        }
+
+        // Check if email is verified
+        if (!user.IsEmailVerified)
+        {
+            return null; // Email not verified
         }
 
         if (!user.IsActive)

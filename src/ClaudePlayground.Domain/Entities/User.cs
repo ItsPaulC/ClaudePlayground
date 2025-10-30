@@ -23,6 +23,16 @@ public class User : BaseEntity
     [BsonElement("roles")]
     public IEnumerable<Role> Roles { get; set; } = [];
 
+    [BsonElement("isEmailVerified")]
+    public bool IsEmailVerified { get; set; } = false;
+
+    [BsonElement("emailVerificationToken")]
+    public string? EmailVerificationToken { get; set; }
+
+    [BsonElement("emailVerificationTokenExpiresAt")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? EmailVerificationTokenExpiresAt { get; set; }
+
     [BsonElement("lastLoginAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? LastLoginAt { get; set; }

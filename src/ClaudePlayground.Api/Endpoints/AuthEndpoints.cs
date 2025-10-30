@@ -15,14 +15,38 @@ public static class AuthEndpoints
         {
             AuthResponseDto? response = await authService.RegisterAsync(registerDto, ct);
 
+            // RegisterAsync now returns null on success (email verification required)
+            // or null if user already exists
+            // We need to determine which case it is by checking the result
             if (response == null)
             {
-                return Results.BadRequest(new { message = "User with this email already exists or registration failed" });
+                // Since RegisterAsync now returns null after successfully sending verification email,
+                // we should return a success message instructing the user to check their email
+                return Results.Ok(new {
+                    message = "Registration successful. Please check your email to verify your account.",
+                    emailSent = true
+                });
             }
 
-            return Results.Ok(response);
+            // This shouldn't happen with current implementation, but keeping for safety
+            return Results.BadRequest(new { message = "Registration failed" });
         })
         .WithName("Register")
+        .WithOpenApi()
+        .AllowAnonymous();
+
+        group.MapGet("/verify-email", async (string token, IAuthService authService, CancellationToken ct) =>
+        {
+            bool success = await authService.VerifyEmailAsync(token, ct);
+
+            if (!success)
+            {
+                return Results.BadRequest(new { message = "Email verification failed. Token may be invalid or expired." });
+            }
+
+            return Results.Ok(new { message = "Email verified successfully. You can now log in." });
+        })
+        .WithName("VerifyEmail")
         .WithOpenApi()
         .AllowAnonymous();
 
