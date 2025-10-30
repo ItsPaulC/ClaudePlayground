@@ -286,7 +286,7 @@ public class UserService : IUserService
         return await _repository.DeleteAsync(id, cancellationToken);
     }
 
-    private void ValidateUserCreationAuthorization(IEnumerable<string> roleValues, string? targetTenantId)
+    internal void ValidateUserCreationAuthorization(IEnumerable<string> roleValues, string? targetTenantId)
     {
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
         bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
