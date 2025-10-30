@@ -2,6 +2,7 @@ using System.Text;
 using ClaudePlayground.Api.Endpoints;
 using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Infrastructure;
+using ClaudePlayground.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -35,6 +36,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 WebApplication app = builder.Build();
+
+// Ensure MongoDB indexes are created
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    MongoDbContext dbContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+    await dbContext.EnsureIndexesAsync();
+}
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

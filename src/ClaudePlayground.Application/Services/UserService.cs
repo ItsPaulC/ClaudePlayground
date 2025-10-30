@@ -3,6 +3,7 @@ using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Domain.Entities;
 using ClaudePlayground.Domain.ValueObjects;
+using MongoDB.Driver;
 
 namespace ClaudePlayground.Application.Services;
 
@@ -171,8 +172,16 @@ public class UserService : IUserService
             TenantId = tenantId
         };
 
-        User createdUser = await _repository.CreateAsync(user, cancellationToken);
-        return MapToDto(createdUser);
+        try
+        {
+            User createdUser = await _repository.CreateAsync(user, cancellationToken);
+            return MapToDto(createdUser);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // Handle race condition where another request created a user with the same email
+            throw new InvalidOperationException($"User with email {dto.Email} already exists");
+        }
     }
 
     public async Task<UserDto> UpdateAsync(string id, UpdateUserDto dto, CancellationToken cancellationToken = default)

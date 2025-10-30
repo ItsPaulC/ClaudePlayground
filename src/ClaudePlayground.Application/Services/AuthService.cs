@@ -8,6 +8,7 @@ using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Domain.Entities;
 using Microsoft.IdentityModel.Tokens;
+using MongoDB.Driver;
 
 namespace ClaudePlayground.Application.Services;
 
@@ -50,7 +51,16 @@ public class AuthService : IAuthService
             TenantId = registerDto.Email.ToLowerInvariant() // Use email as tenant ID for now
         };
 
-        User createdUser = await _userRepository.CreateAsync(user, ct);
+        User createdUser;
+        try
+        {
+            createdUser = await _userRepository.CreateAsync(user, ct);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // Handle race condition where another request created a user with the same email
+            return null; // User already exists
+        }
 
         // Generate JWT token
         string token = GenerateJwtToken(createdUser);

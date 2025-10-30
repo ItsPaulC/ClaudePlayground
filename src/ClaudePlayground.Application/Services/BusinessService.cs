@@ -9,6 +9,7 @@ using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Domain.Entities;
 using ClaudePlayground.Domain.ValueObjects;
 using Microsoft.IdentityModel.Tokens;
+using MongoDB.Driver;
 
 namespace ClaudePlayground.Application.Services;
 
@@ -127,7 +128,16 @@ public class BusinessService : IBusinessService
             TenantId = createdBusiness.Id // User belongs to the business tenant
         };
 
-        User createdUser = await _userRepository.CreateAsync(user, cancellationToken);
+        User createdUser;
+        try
+        {
+            createdUser = await _userRepository.CreateAsync(user, cancellationToken);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // Handle race condition where another request created a user with the same email
+            throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
+        }
 
         // Generate JWT token
         string token = GenerateJwtToken(createdUser);
