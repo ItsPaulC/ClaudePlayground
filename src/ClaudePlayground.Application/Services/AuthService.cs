@@ -284,7 +284,7 @@ public class AuthService : IAuthService
         return true;
     }
 
-    private string GenerateJwtToken(User user)
+    internal string GenerateJwtToken(User user)
     {
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
@@ -367,7 +367,7 @@ public class AuthService : IAuthService
         );
     }
 
-    private async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
+    internal async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
     {
         // Generate cryptographically secure random token
         byte[] randomBytes = new byte[64];
