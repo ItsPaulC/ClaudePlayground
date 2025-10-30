@@ -1,6 +1,7 @@
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
+using FluentValidation;
 
 namespace ClaudePlayground.Api.Endpoints;
 
@@ -48,8 +49,14 @@ public static class UserEndpoints
         .WithOpenApi();
 
         // Create User - Super-user can create any role, BusinessOwner can create User/ReadOnlyUser in their tenant
-        group.MapPost("/", async (CreateUserDto dto, IUserService service, CancellationToken ct) =>
+        group.MapPost("/", async (CreateUserDto dto, IValidator<CreateUserDto> validator, IUserService service, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(dto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             try
             {
                 UserDto user = await service.CreateAsync(dto, null, ct);
@@ -73,8 +80,14 @@ public static class UserEndpoints
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Create User in Specific Tenant - Super-user only (cross-tenant user creation)
-        group.MapPost("/tenant/{tenantId}", async (string tenantId, CreateUserDto dto, IUserService service, CancellationToken ct) =>
+        group.MapPost("/tenant/{tenantId}", async (string tenantId, CreateUserDto dto, IValidator<CreateUserDto> validator, IUserService service, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(dto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             try
             {
                 UserDto user = await service.CreateAsync(dto, tenantId, ct);

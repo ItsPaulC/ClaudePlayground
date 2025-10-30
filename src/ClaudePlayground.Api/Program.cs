@@ -1,5 +1,6 @@
 using System.Text;
 using ClaudePlayground.Api.Endpoints;
+using ClaudePlayground.Application;
 using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Infrastructure;
 using ClaudePlayground.Infrastructure.Persistence;
@@ -11,6 +12,9 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add Application (includes validators)
+builder.Services.AddApplication();
 
 // Add Infrastructure (includes Application services and MongoDB)
 builder.Services.AddInfrastructure(builder.Configuration);

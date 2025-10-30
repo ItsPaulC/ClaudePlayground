@@ -1,5 +1,7 @@
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
+using ClaudePlayground.Application.Validators;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
 namespace ClaudePlayground.Api.Endpoints;
@@ -11,8 +13,14 @@ public static class AuthEndpoints
         RouteGroupBuilder group = app.MapGroup("/api/auth")
             .WithTags("Authentication");
 
-        group.MapPost("/register", async (RegisterDto registerDto, IAuthService authService, CancellationToken ct) =>
+        group.MapPost("/register", async (RegisterDto registerDto, IValidator<RegisterDto> validator, IAuthService authService, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(registerDto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             AuthResponseDto? response = await authService.RegisterAsync(registerDto, ct);
 
             // RegisterAsync now returns null on success (email verification required)
@@ -50,8 +58,14 @@ public static class AuthEndpoints
         .WithOpenApi()
         .AllowAnonymous();
 
-        group.MapPost("/login", async (LoginDto loginDto, IAuthService authService, CancellationToken ct) =>
+        group.MapPost("/login", async (LoginDto loginDto, IValidator<LoginDto> validator, IAuthService authService, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(loginDto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             AuthResponseDto? response = await authService.LoginAsync(loginDto, ct);
 
             if (response == null)
@@ -87,8 +101,14 @@ public static class AuthEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
-        group.MapPost("/change-password", async (ChangePasswordDto changePasswordDto, IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
+        group.MapPost("/change-password", async (ChangePasswordDto changePasswordDto, IValidator<ChangePasswordDto> validator, IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(changePasswordDto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             string? email = httpContext.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value;
 
             if (string.IsNullOrEmpty(email))
@@ -109,8 +129,14 @@ public static class AuthEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
-        group.MapPost("/forgot-password", async (ForgotPasswordDto forgotPasswordDto, IAuthService authService, CancellationToken ct) =>
+        group.MapPost("/forgot-password", async (ForgotPasswordDto forgotPasswordDto, IValidator<ForgotPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(forgotPasswordDto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             bool success = await authService.RequestPasswordResetAsync(forgotPasswordDto, ct);
 
             // Always return success message for security (don't reveal if email exists)
@@ -120,8 +146,14 @@ public static class AuthEndpoints
         .WithOpenApi()
         .AllowAnonymous();
 
-        group.MapPost("/reset-password", async (ResetPasswordDto resetPasswordDto, IAuthService authService, CancellationToken ct) =>
+        group.MapPost("/reset-password", async (ResetPasswordDto resetPasswordDto, IValidator<ResetPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
         {
+            var validationResult = await validator.ValidateAsync(resetPasswordDto, ct);
+            if (!validationResult.IsValid)
+            {
+                return Results.ValidationProblem(validationResult.ToDictionary());
+            }
+
             bool success = await authService.ResetPasswordAsync(resetPasswordDto, ct);
 
             if (!success)
