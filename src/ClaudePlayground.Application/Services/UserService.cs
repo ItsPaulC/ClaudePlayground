@@ -24,6 +24,7 @@ public class UserService : IUserService
 
     public async Task<UserDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
+        // Retrieve user from database
         User? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         if (entity == null)
@@ -31,17 +32,22 @@ public class UserService : IUserService
             return null;
         }
 
-        // Super-users can view any user (cross-tenant access)
+        // Check authorization level
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
 
+        // Super-users can view any user (cross-tenant access)
         if (isSuperUser)
         {
             return MapToDto(entity);
         }
 
-        // Other users can only view users in their own tenant
-        if (entity.TenantId != _tenantProvider.GetTenantId())
+        // Enforce tenant isolation for non-SuperUsers
+        // Users can ONLY view users where the user's tenantId matches the JWT's "ten" claim
+        string currentTenantId = _tenantProvider.GetTenantId();
+
+        if (entity.TenantId != currentTenantId)
         {
+            // Return null (not found) to avoid leaking information about users in other tenants
             return null;
         }
 
@@ -129,6 +135,16 @@ public class UserService : IUserService
 
     public async Task<UserDto> UpdateAsync(string id, UpdateUserDto dto, CancellationToken cancellationToken = default)
     {
+        // Check authorization level first
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+
+        if (!isSuperUser && !isBusinessOwner)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to update users");
+        }
+
+        // Retrieve user from database
         User? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         if (entity == null)
@@ -136,16 +152,17 @@ public class UserService : IUserService
             throw new KeyNotFoundException($"User with ID {id} not found");
         }
 
-        // Check authorization
-        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
-        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
-        string currentTenantId = _tenantProvider.GetTenantId();
-
-        // Super-users can update any user
-        // BusinessOwners can only update users in their own tenant
-        if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
+        // Enforce tenant isolation for non-SuperUsers
+        // BusinessOwners can ONLY update users where the user's tenantId matches the JWT's "ten" claim
+        if (!isSuperUser)
         {
-            throw new UnauthorizedAccessException("You do not have permission to update this user");
+            string currentTenantId = _tenantProvider.GetTenantId();
+
+            if (entity.TenantId != currentTenantId)
+            {
+                // Return NotFound instead of Unauthorized to avoid leaking information about users in other tenants
+                throw new KeyNotFoundException($"User with ID {id} not found");
+            }
         }
 
         // Validate role changes
@@ -185,23 +202,34 @@ public class UserService : IUserService
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
+        // Check authorization level first
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+
+        if (!isSuperUser && !isBusinessOwner)
+        {
+            return false; // Not authorized to delete users
+        }
+
+        // Retrieve user from database
         User? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         if (entity == null)
         {
-            return false;
+            return false; // User not found
         }
 
-        // Check authorization
-        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
-        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
-        string currentTenantId = _tenantProvider.GetTenantId();
-
-        // Super-users can delete any user
-        // BusinessOwners can only delete users in their own tenant
-        if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
+        // Enforce tenant isolation for non-SuperUsers
+        // BusinessOwners can ONLY delete users where the user's tenantId matches the JWT's "ten" claim
+        if (!isSuperUser)
         {
-            return false;
+            string currentTenantId = _tenantProvider.GetTenantId();
+
+            if (entity.TenantId != currentTenantId)
+            {
+                // Return false (not found) instead of throwing to avoid leaking information
+                return false;
+            }
         }
 
         return await _repository.DeleteAsync(id, cancellationToken);
