@@ -12,25 +12,40 @@ public static class UserEndpoints
             .WithTags("Users")
             .RequireAuthorization();
 
-        // Get All Users - Super-user can see all, others see only their tenant
+        // Get All Users - SuperUser and BusinessOwner only
         group.MapGet("/", async (IUserService service, CancellationToken ct) =>
         {
-            IEnumerable<UserDto> users = await service.GetAllAsync(ct);
-            return Results.Ok(users);
+            try
+            {
+                IEnumerable<UserDto> users = await service.GetAllAsync(ct);
+                return Results.Ok(users);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Forbid();
+            }
         })
         .WithName("GetAllUsers")
         .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
-        // Get User by ID - Super-user or users in the same tenant
+        // Get Current User - Any authenticated user can get their own information
+        group.MapGet("/me", async (IUserService service, CancellationToken ct) =>
+        {
+            UserDto? user = await service.GetMeAsync(ct);
+            return user is not null ? Results.Ok(user) : Results.NotFound();
+        })
+        .WithName("GetMe")
+        .WithOpenApi();
+
+        // Get User by ID - SuperUser and BusinessOwner can view users, regular users can only view themselves
         group.MapGet("/{id}", async (string id, IUserService service, CancellationToken ct) =>
         {
             UserDto? user = await service.GetByIdAsync(id, ct);
             return user is not null ? Results.Ok(user) : Results.NotFound();
         })
         .WithName("GetUserById")
-        .WithOpenApi()
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
+        .WithOpenApi();
 
         // Create User - Super-user can create any role, BusinessOwner can create User/ReadOnlyUser in their tenant
         group.MapPost("/", async (CreateUserDto dto, IUserService service, CancellationToken ct) =>

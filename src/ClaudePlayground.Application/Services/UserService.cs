@@ -34,6 +34,8 @@ public class UserService : IUserService
 
         // Check authorization level
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+        string? currentUserId = _currentUserService.UserId;
 
         // Super-users can view any user (cross-tenant access)
         if (isSuperUser)
@@ -41,8 +43,7 @@ public class UserService : IUserService
             return MapToDto(entity);
         }
 
-        // Enforce tenant isolation for non-SuperUsers
-        // Users can ONLY view users where the user's tenantId matches the JWT's "ten" claim
+        // Enforce tenant isolation for all non-SuperUsers
         string currentTenantId = _tenantProvider.GetTenantId();
 
         if (entity.TenantId != currentTenantId)
@@ -51,22 +52,63 @@ public class UserService : IUserService
             return null;
         }
 
+        // BusinessOwners can view any user in their tenant
+        if (isBusinessOwner)
+        {
+            return MapToDto(entity);
+        }
+
+        // User and ReadOnlyUser roles can ONLY view their own user information
+        if (entity.Id != currentUserId)
+        {
+            // Return null (not found) to prevent viewing other users
+            return null;
+        }
+
+        return MapToDto(entity);
+    }
+
+    public async Task<UserDto?> GetMeAsync(CancellationToken cancellationToken = default)
+    {
+        // Get current user ID from JWT claims
+        string? currentUserId = _currentUserService.UserId;
+
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            return null; // No user ID in claims
+        }
+
+        // Retrieve user from database
+        User? entity = await _repository.GetByIdAsync(currentUserId, cancellationToken);
+
+        if (entity == null)
+        {
+            return null;
+        }
+
         return MapToDto(entity);
     }
 
     public async Task<IEnumerable<UserDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
+        // Check authorization - only SuperUser and BusinessOwner can get all users
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+
+        if (!isSuperUser && !isBusinessOwner)
+        {
+            throw new UnauthorizedAccessException("Only SuperUser and BusinessOwner can view all users");
+        }
+
         IEnumerable<User> entities = await _repository.GetAllAsync(cancellationToken);
 
         // Super-users can see all users (cross-tenant access)
-        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
-
         if (isSuperUser)
         {
             return entities.Select(MapToDto);
         }
 
-        // Other users can only see users in their own tenant
+        // BusinessOwners can only see users in their own tenant
         string currentTenantId = _tenantProvider.GetTenantId();
         return entities
             .Where(e => e.TenantId == currentTenantId)
