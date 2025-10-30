@@ -113,7 +113,7 @@ public class BusinessService : IBusinessService
 
         Business createdBusiness = await _repository.CreateAsync(business, cancellationToken);
 
-        // Create the super-user for this business tenant
+        // Create the BusinessOwner for this business tenant
         string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword);
 
         User user = new()
@@ -123,7 +123,7 @@ public class BusinessService : IBusinessService
             FirstName = dto.UserFirstName,
             LastName = dto.UserLastName,
             IsActive = true,
-            Roles = [Roles.SuperUser],
+            Roles = [Roles.BusinessOwner],
             TenantId = createdBusiness.Id // User belongs to the business tenant
         };
 
