@@ -20,7 +20,6 @@ public class AuthServiceTests
     // Mocks (member variables)
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<RefreshToken> _refreshTokenRepository;
-    private readonly JwtSettings _jwtSettings;
     private readonly IEmailService _emailService;
 
     public AuthServiceTests()
@@ -31,7 +30,7 @@ public class AuthServiceTests
         _emailService = Substitute.For<IEmailService>();
 
         // Create test JWT settings
-        _jwtSettings = new JwtSettings
+        JwtSettings jwtSettings = new()
         {
             SecretKey = "ThisIsASecretKeyForTestingPurposesOnly1234567890",
             Issuer = "TestIssuer",
@@ -44,7 +43,7 @@ public class AuthServiceTests
         _sut = new AuthService(
             _userRepository,
             _refreshTokenRepository,
-            _jwtSettings,
+            jwtSettings,
             _emailService
         );
     }
