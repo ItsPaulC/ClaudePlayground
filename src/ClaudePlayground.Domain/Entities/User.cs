@@ -33,6 +33,13 @@ public class User : BaseEntity
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? EmailVerificationTokenExpiresAt { get; set; }
 
+    [BsonElement("passwordResetToken")]
+    public string? PasswordResetToken { get; set; }
+
+    [BsonElement("passwordResetTokenExpiresAt")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
     [BsonElement("lastLoginAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? LastLoginAt { get; set; }

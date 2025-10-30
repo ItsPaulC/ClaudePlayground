@@ -9,5 +9,7 @@ public interface IAuthService
     Task<bool> VerifyEmailAsync(string token, CancellationToken ct = default);
     Task<UserDto?> GetUserByEmailAsync(string email, CancellationToken ct = default);
     Task<bool> ChangePasswordAsync(string email, ChangePasswordDto changePasswordDto, CancellationToken ct = default);
+    Task<bool> RequestPasswordResetAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken ct = default);
+    Task<bool> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken ct = default);
     Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken, CancellationToken ct = default);
 }

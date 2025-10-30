@@ -109,6 +109,32 @@ public static class AuthEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
+        group.MapPost("/forgot-password", async (ForgotPasswordDto forgotPasswordDto, IAuthService authService, CancellationToken ct) =>
+        {
+            bool success = await authService.RequestPasswordResetAsync(forgotPasswordDto, ct);
+
+            // Always return success message for security (don't reveal if email exists)
+            return Results.Ok(new { message = "If an account with that email exists, a password reset link has been sent." });
+        })
+        .WithName("ForgotPassword")
+        .WithOpenApi()
+        .AllowAnonymous();
+
+        group.MapPost("/reset-password", async (ResetPasswordDto resetPasswordDto, IAuthService authService, CancellationToken ct) =>
+        {
+            bool success = await authService.ResetPasswordAsync(resetPasswordDto, ct);
+
+            if (!success)
+            {
+                return Results.BadRequest(new { message = "Password reset failed. Token may be invalid or expired." });
+            }
+
+            return Results.Ok(new { message = "Password reset successfully. You can now log in with your new password." });
+        })
+        .WithName("ResetPassword")
+        .WithOpenApi()
+        .AllowAnonymous();
+
         group.MapPost("/refresh", async (RefreshTokenDto refreshTokenDto, IAuthService authService, CancellationToken ct) =>
         {
             AuthResponseDto? response = await authService.RefreshTokenAsync(refreshTokenDto.RefreshToken, ct);

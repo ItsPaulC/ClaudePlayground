@@ -219,6 +219,71 @@ public class AuthService : IAuthService
         return true;
     }
 
+    public async Task<bool> RequestPasswordResetAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken ct = default)
+    {
+        // Find user by email
+        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
+        User? user = users.FirstOrDefault(u => u.Email.Equals(forgotPasswordDto.Email, StringComparison.OrdinalIgnoreCase));
+
+        // Always return true even if user not found (security best practice - don't reveal if email exists)
+        if (user == null)
+        {
+            return true;
+        }
+
+        // Only send reset email if user has verified their email
+        if (!user.IsEmailVerified)
+        {
+            return true; // Return true but don't send email (user needs to verify email first)
+        }
+
+        // Generate password reset token
+        string resetToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
+        // Set reset token and expiration (1 hour)
+        user.PasswordResetToken = resetToken;
+        user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddHours(1);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _userRepository.UpdateAsync(user, ct);
+
+        // Send password reset email
+        await _emailService.SendPasswordResetAsync(user.Email, resetToken, ct);
+
+        return true;
+    }
+
+    public async Task<bool> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken ct = default)
+    {
+        // Find user by reset token
+        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
+        User? user = users.FirstOrDefault(u => u.PasswordResetToken == resetPasswordDto.Token);
+
+        if (user == null)
+        {
+            return false; // Invalid token
+        }
+
+        // Check if token has expired
+        if (user.PasswordResetTokenExpiresAt == null || user.PasswordResetTokenExpiresAt < DateTime.UtcNow)
+        {
+            return false; // Token expired
+        }
+
+        // Hash new password
+        string newPasswordHash = BCrypt.Net.BCrypt.HashPassword(resetPasswordDto.NewPassword);
+
+        // Update password and clear reset token
+        user.PasswordHash = newPasswordHash;
+        user.PasswordResetToken = null;
+        user.PasswordResetTokenExpiresAt = null;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _userRepository.UpdateAsync(user, ct);
+
+        return true;
+    }
+
     private string GenerateJwtToken(User user)
     {
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));

@@ -29,4 +29,23 @@ public class ConsoleEmailService : IEmailService
 
         return Task.CompletedTask;
     }
+
+    public Task SendPasswordResetAsync(string email, string resetToken, CancellationToken cancellationToken = default)
+    {
+        // In production, this would send an actual email
+        // For now, log the password reset link to console for testing
+        string resetLink = $"https://localhost:5001/api/auth/reset-password?token={resetToken}";
+
+        _logger.LogInformation(
+            "=== PASSWORD RESET ===\n" +
+            "To: {Email}\n" +
+            "Subject: Reset your password\n" +
+            "Reset Link: {ResetLink}\n" +
+            "Token: {Token}\n" +
+            "This link expires in 1 hour.\n" +
+            "===================",
+            email, resetLink, resetToken);
+
+        return Task.CompletedTask;
+    }
 }
