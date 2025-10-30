@@ -51,5 +51,6 @@ app.UseAuthorization();
 // Map endpoint groups
 app.MapAuthEndpoints();
 app.MapBusinessEndpoints();
+app.MapUserEndpoints();
 
 app.Run();

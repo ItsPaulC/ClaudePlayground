@@ -58,7 +58,7 @@ public static class BusinessEndpoints
         .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
-        // Update Business - Super-user (any) or Admin (own tenant only)
+        // Update Business - Super-user (any) or BusinessOwner (own tenant only)
         group.MapPut("/{id}", async (string id, UpdateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
         {
             try
@@ -77,7 +77,7 @@ public static class BusinessEndpoints
         })
         .WithName("UpdateBusiness")
         .WithOpenApi()
-        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.AdminValue));
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Delete Business - Super-user only
         group.MapDelete("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>

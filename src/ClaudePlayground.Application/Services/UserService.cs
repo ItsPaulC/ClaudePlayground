@@ -1,0 +1,262 @@
+using ClaudePlayground.Application.DTOs;
+using ClaudePlayground.Application.Interfaces;
+using ClaudePlayground.Domain.Common;
+using ClaudePlayground.Domain.Entities;
+using ClaudePlayground.Domain.ValueObjects;
+
+namespace ClaudePlayground.Application.Services;
+
+public class UserService : IUserService
+{
+    private readonly IRepository<User> _repository;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserService _currentUserService;
+
+    public UserService(
+        IRepository<User> repository,
+        ITenantProvider tenantProvider,
+        ICurrentUserService currentUserService)
+    {
+        _repository = repository;
+        _tenantProvider = tenantProvider;
+        _currentUserService = currentUserService;
+    }
+
+    public async Task<UserDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+    {
+        User? entity = await _repository.GetByIdAsync(id, cancellationToken);
+
+        if (entity == null)
+        {
+            return null;
+        }
+
+        // Super-users can view any user (cross-tenant access)
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+
+        if (isSuperUser)
+        {
+            return MapToDto(entity);
+        }
+
+        // Other users can only view users in their own tenant
+        if (entity.TenantId != _tenantProvider.GetTenantId())
+        {
+            return null;
+        }
+
+        return MapToDto(entity);
+    }
+
+    public async Task<IEnumerable<UserDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        IEnumerable<User> entities = await _repository.GetAllAsync(cancellationToken);
+
+        // Super-users can see all users (cross-tenant access)
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+
+        if (isSuperUser)
+        {
+            return entities.Select(MapToDto);
+        }
+
+        // Other users can only see users in their own tenant
+        string currentTenantId = _tenantProvider.GetTenantId();
+        return entities
+            .Where(e => e.TenantId == currentTenantId)
+            .Select(MapToDto);
+    }
+
+    public async Task<UserDto> CreateAsync(CreateUserDto dto, string? targetTenantId = null, CancellationToken cancellationToken = default)
+    {
+        // Validate authorization
+        ValidateUserCreationAuthorization(dto.RoleValues, targetTenantId);
+
+        // Check if user already exists
+        IEnumerable<User> existingUsers = await _repository.GetAllAsync(cancellationToken);
+        User? existingUser = existingUsers.FirstOrDefault(u => u.Email.Equals(dto.Email, StringComparison.OrdinalIgnoreCase));
+
+        if (existingUser != null)
+        {
+            throw new InvalidOperationException($"User with email {dto.Email} already exists");
+        }
+
+        // Convert role values to Role objects
+        List<Role> roles = new();
+        foreach (string roleValue in dto.RoleValues)
+        {
+            Role? role = Roles.GetByValue(roleValue);
+            if (role == null)
+            {
+                throw new ArgumentException($"Invalid role value: {roleValue}");
+            }
+            roles.Add(role);
+        }
+
+        // Hash the password
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+        // Determine the tenant ID for the new user
+        string tenantId;
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+
+        if (isSuperUser && targetTenantId != null)
+        {
+            // SuperUser can create users in any tenant
+            tenantId = targetTenantId;
+        }
+        else
+        {
+            // BusinessOwner creates users in their own tenant
+            tenantId = _tenantProvider.GetTenantId();
+        }
+
+        // Create new user
+        User user = new()
+        {
+            Email = dto.Email.ToLowerInvariant(),
+            PasswordHash = passwordHash,
+            FirstName = dto.FirstName,
+            LastName = dto.LastName,
+            IsActive = true,
+            Roles = roles,
+            TenantId = tenantId
+        };
+
+        User createdUser = await _repository.CreateAsync(user, cancellationToken);
+        return MapToDto(createdUser);
+    }
+
+    public async Task<UserDto> UpdateAsync(string id, UpdateUserDto dto, CancellationToken cancellationToken = default)
+    {
+        User? entity = await _repository.GetByIdAsync(id, cancellationToken);
+
+        if (entity == null)
+        {
+            throw new KeyNotFoundException($"User with ID {id} not found");
+        }
+
+        // Check authorization
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+        string currentTenantId = _tenantProvider.GetTenantId();
+
+        // Super-users can update any user
+        // BusinessOwners can only update users in their own tenant
+        if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
+        {
+            throw new UnauthorizedAccessException("You do not have permission to update this user");
+        }
+
+        // Validate role changes
+        if (!isSuperUser)
+        {
+            // BusinessOwners can only assign User and ReadOnlyUser roles
+            foreach (string roleValue in dto.RoleValues)
+            {
+                if (roleValue != Roles.UserValue && roleValue != Roles.ReadOnlyUserValue)
+                {
+                    throw new UnauthorizedAccessException($"You do not have permission to assign the role: {roleValue}");
+                }
+            }
+        }
+
+        // Convert role values to Role objects
+        List<Role> roles = new();
+        foreach (string roleValue in dto.RoleValues)
+        {
+            Role? role = Roles.GetByValue(roleValue);
+            if (role == null)
+            {
+                throw new ArgumentException($"Invalid role value: {roleValue}");
+            }
+            roles.Add(role);
+        }
+
+        entity.FirstName = dto.FirstName;
+        entity.LastName = dto.LastName;
+        entity.IsActive = dto.IsActive;
+        entity.Roles = roles;
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        User updated = await _repository.UpdateAsync(entity, cancellationToken);
+        return MapToDto(updated);
+    }
+
+    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    {
+        User? entity = await _repository.GetByIdAsync(id, cancellationToken);
+
+        if (entity == null)
+        {
+            return false;
+        }
+
+        // Check authorization
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+        string currentTenantId = _tenantProvider.GetTenantId();
+
+        // Super-users can delete any user
+        // BusinessOwners can only delete users in their own tenant
+        if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
+        {
+            return false;
+        }
+
+        return await _repository.DeleteAsync(id, cancellationToken);
+    }
+
+    private void ValidateUserCreationAuthorization(IEnumerable<string> roleValues, string? targetTenantId)
+    {
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+
+        if (!isSuperUser && !isBusinessOwner)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to create users");
+        }
+
+        // SuperUser can create users with any role
+        if (isSuperUser)
+        {
+            return;
+        }
+
+        // BusinessOwner validation
+        if (isBusinessOwner)
+        {
+            // BusinessOwners can only create User and ReadOnlyUser roles
+            foreach (string roleValue in roleValues)
+            {
+                if (roleValue != Roles.UserValue && roleValue != Roles.ReadOnlyUserValue)
+                {
+                    throw new UnauthorizedAccessException($"BusinessOwners can only create users with User or ReadOnlyUser roles. Cannot assign role: {roleValue}");
+                }
+            }
+
+            // BusinessOwners can only create users in their own tenant
+            string currentTenantId = _tenantProvider.GetTenantId();
+            if (targetTenantId != null && targetTenantId != currentTenantId)
+            {
+                throw new UnauthorizedAccessException("BusinessOwners can only create users in their own tenant");
+            }
+        }
+    }
+
+    private static UserDto MapToDto(User entity)
+    {
+        return new UserDto(
+            entity.Id,
+            entity.TenantId,
+            entity.Email,
+            entity.FirstName,
+            entity.LastName,
+            entity.IsActive,
+            entity.Roles,
+            entity.LastLoginAt,
+            entity.CreatedAt,
+            entity.UpdatedAt
+        );
+    }
+}

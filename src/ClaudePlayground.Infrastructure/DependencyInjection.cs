@@ -44,6 +44,7 @@ public static class DependencyInjection
         // Application Services
         services.AddScoped<IBusinessService, BusinessService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
 
         return services;
     }

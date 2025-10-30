@@ -124,13 +124,15 @@ public class AuthService : IAuthService
 
         return new UserDto(
             user.Id,
+            user.TenantId,
             user.Email,
             user.FirstName,
             user.LastName,
             user.IsActive,
             user.Roles,
             user.LastLoginAt,
-            user.CreatedAt
+            user.CreatedAt,
+            user.UpdatedAt
         );
     }
 

@@ -155,12 +155,12 @@ public class BusinessService : IBusinessService
 
         // Check authorization
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
-        bool isAdmin = _currentUserService.IsInRole(Roles.AdminValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
         string currentTenantId = _tenantProvider.GetTenantId();
 
         // Super-users can update any business
-        // Admins can only update businesses in their own tenant
-        if (!isSuperUser && (!isAdmin || entity.TenantId != currentTenantId))
+        // BusinessOwners can only update businesses in their own tenant
+        if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
         {
             throw new UnauthorizedAccessException("You do not have permission to update this business");
         }
