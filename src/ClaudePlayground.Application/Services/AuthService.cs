@@ -33,9 +33,10 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto registerDto, CancellationToken ct = default)
     {
-        // Check if user already exists
-        IEnumerable<User> existingUsers = await _userRepository.GetAllAsync(ct);
-        User? existingUser = existingUsers.FirstOrDefault(u => u.Email.Equals(registerDto.Email, StringComparison.OrdinalIgnoreCase));
+        // Check if user already exists - use efficient query instead of loading all users
+        User? existingUser = await _userRepository.FindOneAsync(
+            u => u.Email.ToLower() == registerDto.Email.ToLower(),
+            ct);
 
         if (existingUser != null)
         {
@@ -84,9 +85,10 @@ public class AuthService : IAuthService
 
     public async Task<bool> VerifyEmailAsync(string token, CancellationToken ct = default)
     {
-        // Find user by verification token
-        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
-        User? user = users.FirstOrDefault(u => u.EmailVerificationToken == token);
+        // Find user by verification token - use efficient query
+        User? user = await _userRepository.FindOneAsync(
+            u => u.EmailVerificationToken == token,
+            ct);
 
         if (user == null)
         {
@@ -118,9 +120,10 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto loginDto, CancellationToken ct = default)
     {
-        // Find user by email
-        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
-        User? user = users.FirstOrDefault(u => u.Email.Equals(loginDto.Email, StringComparison.OrdinalIgnoreCase));
+        // Find user by email - use efficient query
+        User? user = await _userRepository.FindOneAsync(
+            u => u.Email.ToLower() == loginDto.Email.ToLower(),
+            ct);
 
         if (user == null)
         {
@@ -168,8 +171,10 @@ public class AuthService : IAuthService
 
     public async Task<UserDto?> GetUserByEmailAsync(string email, CancellationToken ct = default)
     {
-        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
-        User? user = users.FirstOrDefault(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+        // Use efficient query instead of loading all users
+        User? user = await _userRepository.FindOneAsync(
+            u => u.Email.ToLower() == email.ToLower(),
+            ct);
 
         if (user == null)
         {
@@ -192,9 +197,10 @@ public class AuthService : IAuthService
 
     public async Task<bool> ChangePasswordAsync(string email, ChangePasswordDto changePasswordDto, CancellationToken ct = default)
     {
-        // Find user by email
-        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
-        User? user = users.FirstOrDefault(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+        // Find user by email - use efficient query
+        User? user = await _userRepository.FindOneAsync(
+            u => u.Email.ToLower() == email.ToLower(),
+            ct);
 
         if (user == null)
         {
@@ -221,9 +227,10 @@ public class AuthService : IAuthService
 
     public async Task<bool> RequestPasswordResetAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken ct = default)
     {
-        // Find user by email
-        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
-        User? user = users.FirstOrDefault(u => u.Email.Equals(forgotPasswordDto.Email, StringComparison.OrdinalIgnoreCase));
+        // Find user by email - use efficient query
+        User? user = await _userRepository.FindOneAsync(
+            u => u.Email.ToLower() == forgotPasswordDto.Email.ToLower(),
+            ct);
 
         // Always return true even if user not found (security best practice - don't reveal if email exists)
         if (user == null)
@@ -255,9 +262,10 @@ public class AuthService : IAuthService
 
     public async Task<bool> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken ct = default)
     {
-        // Find user by reset token
-        IEnumerable<User> users = await _userRepository.GetAllAsync(ct);
-        User? user = users.FirstOrDefault(u => u.PasswordResetToken == resetPasswordDto.Token);
+        // Find user by reset token - use efficient query
+        User? user = await _userRepository.FindOneAsync(
+            u => u.PasswordResetToken == resetPasswordDto.Token,
+            ct);
 
         if (user == null)
         {
@@ -317,9 +325,10 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken, CancellationToken ct = default)
     {
-        // Find refresh token in database
-        IEnumerable<RefreshToken> refreshTokens = await _refreshTokenRepository.GetAllAsync(ct);
-        RefreshToken? storedToken = refreshTokens.FirstOrDefault(rt => rt.Token == refreshToken);
+        // Find refresh token in database - use efficient query
+        RefreshToken? storedToken = await _refreshTokenRepository.FindOneAsync(
+            rt => rt.Token == refreshToken,
+            ct);
 
         if (storedToken == null)
         {
@@ -369,20 +378,27 @@ public class AuthService : IAuthService
 
     internal async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
     {
+        // Get the user to obtain their actual tenant ID
+        User? user = await _userRepository.GetByIdAsync(userId, ct);
+        if (user == null)
+        {
+            throw new InvalidOperationException($"User with ID {userId} not found");
+        }
+
         // Generate cryptographically secure random token
         byte[] randomBytes = new byte[64];
         using RandomNumberGenerator rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
         string token = Convert.ToBase64String(randomBytes);
 
-        // Create refresh token entity
+        // Create refresh token entity with correct tenant ID
         RefreshToken refreshToken = new()
         {
             Token = token,
             UserId = userId,
             ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
             IsRevoked = false,
-            TenantId = userId // Using userId as tenant for now
+            TenantId = user.TenantId // Use the user's actual tenant ID
         };
 
         // Save to database

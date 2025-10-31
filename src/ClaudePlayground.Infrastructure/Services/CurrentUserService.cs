@@ -21,15 +21,10 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            // Try to get from JWT claim first
+            // SECURITY: Only trust tenant ID from JWT claim
+            // Never trust client-provided headers as they can be spoofed
             string? tenantFromClaim = _httpContextAccessor.HttpContext?.User?.FindFirst("ten")?.Value;
-            if (!string.IsNullOrEmpty(tenantFromClaim))
-            {
-                return tenantFromClaim;
-            }
-
-            // Fall back to header for backward compatibility
-            return _httpContextAccessor.HttpContext?.Request?.Headers["X-Tenant-Id"].FirstOrDefault() ?? string.Empty;
+            return tenantFromClaim ?? string.Empty;
         }
     }
 

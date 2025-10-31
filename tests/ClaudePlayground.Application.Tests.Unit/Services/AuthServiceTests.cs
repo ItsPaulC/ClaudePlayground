@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
@@ -62,8 +63,8 @@ public class AuthServiceTests
             null
         );
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         var createdUser = new User
         {
@@ -110,8 +111,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { existingUser });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(existingUser);
 
         // Act
         var result = await _sut.RegisterAsync(registerDto, CancellationToken.None);
@@ -145,8 +146,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
@@ -165,8 +166,8 @@ public class AuthServiceTests
         // Arrange
         var token = "invalid-token";
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
@@ -191,8 +192,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
@@ -217,8 +218,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
@@ -250,8 +251,11 @@ public class AuthServiceTests
             Roles = new List<Role> { Roles.User }
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
+
+        _userRepository.GetByIdAsync("user123", Arg.Any<CancellationToken>())
+            .Returns(user);
 
         var refreshToken = new RefreshToken
         {
@@ -282,8 +286,8 @@ public class AuthServiceTests
         // Arrange
         var loginDto = new LoginDto("nonexistent@example.com", "password123");
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
@@ -307,8 +311,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
@@ -332,8 +336,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
@@ -357,8 +361,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
@@ -389,8 +393,8 @@ public class AuthServiceTests
             UpdatedAt = DateTime.UtcNow
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.GetUserByEmailAsync(email, CancellationToken.None);
@@ -409,8 +413,8 @@ public class AuthServiceTests
         // Arrange
         var email = "nonexistent@example.com";
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var result = await _sut.GetUserByEmailAsync(email, CancellationToken.None);
@@ -437,8 +441,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.ChangePasswordAsync(email, changePasswordDto, CancellationToken.None);
@@ -467,8 +471,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.ChangePasswordAsync(email, changePasswordDto, CancellationToken.None);
@@ -485,8 +489,8 @@ public class AuthServiceTests
         var email = "nonexistent@example.com";
         var changePasswordDto = new ChangePasswordDto("password", "newpassword");
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var result = await _sut.ChangePasswordAsync(email, changePasswordDto, CancellationToken.None);
@@ -512,8 +516,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.RequestPasswordResetAsync(forgotPasswordDto, CancellationToken.None);
@@ -537,8 +541,8 @@ public class AuthServiceTests
         // Arrange
         var forgotPasswordDto = new ForgotPasswordDto("nonexistent@example.com");
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var result = await _sut.RequestPasswordResetAsync(forgotPasswordDto, CancellationToken.None);
@@ -565,8 +569,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.RequestPasswordResetAsync(forgotPasswordDto, CancellationToken.None);
@@ -599,8 +603,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.ResetPasswordAsync(resetPasswordDto, CancellationToken.None);
@@ -621,8 +625,8 @@ public class AuthServiceTests
         // Arrange
         var resetPasswordDto = new ResetPasswordDto("invalid-token", "newpassword123");
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var result = await _sut.ResetPasswordAsync(resetPasswordDto, CancellationToken.None);
@@ -646,8 +650,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { user });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var result = await _sut.ResetPasswordAsync(resetPasswordDto, CancellationToken.None);
@@ -686,8 +690,8 @@ public class AuthServiceTests
             Roles = new List<Role> { Roles.User }
         };
 
-        _refreshTokenRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken> { storedToken });
+        _refreshTokenRepository.FindOneAsync(Arg.Any<Expression<Func<RefreshToken, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(storedToken);
 
         _userRepository.GetByIdAsync("user123", Arg.Any<CancellationToken>())
             .Returns(user);
@@ -722,8 +726,8 @@ public class AuthServiceTests
         // Arrange
         var refreshTokenValue = "invalid-token";
 
-        _refreshTokenRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken>());
+        _refreshTokenRepository.FindOneAsync(Arg.Any<Expression<Func<RefreshToken, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((RefreshToken?)null);
 
         // Act
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
@@ -747,8 +751,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _refreshTokenRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken> { storedToken });
+        _refreshTokenRepository.FindOneAsync(Arg.Any<Expression<Func<RefreshToken, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(storedToken);
 
         // Act
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
@@ -771,8 +775,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _refreshTokenRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken> { storedToken });
+        _refreshTokenRepository.FindOneAsync(Arg.Any<Expression<Func<RefreshToken, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(storedToken);
 
         // Act
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
@@ -803,8 +807,8 @@ public class AuthServiceTests
             TenantId = "tenant123"
         };
 
-        _refreshTokenRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<RefreshToken> { storedToken });
+        _refreshTokenRepository.FindOneAsync(Arg.Any<Expression<Func<RefreshToken, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(storedToken);
 
         _userRepository.GetByIdAsync("user123", Arg.Any<CancellationToken>())
             .Returns(user);
@@ -850,12 +854,21 @@ public class AuthServiceTests
     {
         // Arrange
         var userId = "user123";
+        var user = new User
+        {
+            Id = userId,
+            Email = "test@example.com",
+            TenantId = "tenant123"
+        };
         var refreshToken = new RefreshToken
         {
             Token = "generated-token",
             UserId = userId,
-            TenantId = userId
+            TenantId = "tenant123"
         };
+
+        _userRepository.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(user);
 
         _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
             .Returns(refreshToken);

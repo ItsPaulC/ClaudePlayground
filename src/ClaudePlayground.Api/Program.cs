@@ -27,6 +27,24 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Add JWT Authentication
 JwtSettings jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new();
 
+// Allow JWT secret to be overridden by environment variable for production security
+string jwtSecretKey = builder.Configuration["JWT_SECRET_KEY"] ?? jwtSettings.SecretKey;
+
+// Validate JWT secret key
+if (string.IsNullOrEmpty(jwtSecretKey) || jwtSecretKey.Length < 32)
+{
+    throw new InvalidOperationException(
+        "JWT Secret Key must be at least 32 characters long. " +
+        "Set it via 'JWT_SECRET_KEY' environment variable or 'JwtSettings:SecretKey' in appsettings.");
+}
+
+if (jwtSecretKey.Contains("REPLACE") || jwtSecretKey.Contains("change-this"))
+{
+    throw new InvalidOperationException(
+        "JWT Secret Key has not been configured. " +
+        "Set a secure key via 'JWT_SECRET_KEY' environment variable.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -38,7 +56,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSettings.Issuer,
             ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
         };
     });
 

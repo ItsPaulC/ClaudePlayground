@@ -121,9 +121,10 @@ public class UserService : IUserService
         // Validate authorization
         ValidateUserCreationAuthorization(dto.RoleValues, targetTenantId);
 
-        // Check if user already exists
-        IEnumerable<User> existingUsers = await _repository.GetAllAsync(cancellationToken);
-        User? existingUser = existingUsers.FirstOrDefault(u => u.Email.Equals(dto.Email, StringComparison.OrdinalIgnoreCase));
+        // Check if user already exists - use efficient query
+        User? existingUser = await _repository.FindOneAsync(
+            u => u.Email.ToLower() == dto.Email.ToLower(),
+            cancellationToken);
 
         if (existingUser != null)
         {

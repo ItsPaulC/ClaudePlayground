@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Application.Services;
@@ -516,8 +517,8 @@ public class UserServiceTests
         _currentUserService.IsInRole(Roles.SuperUserValue)
             .Returns(true);
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { existingUser });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(existingUser);
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(
