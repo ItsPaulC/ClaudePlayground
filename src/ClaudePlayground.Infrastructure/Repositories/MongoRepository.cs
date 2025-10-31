@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Domain.Entities;
 using ClaudePlayground.Infrastructure.Persistence;
@@ -23,6 +24,9 @@ public class MongoRepository<T> : IRepository<T> where T : BaseEntity
 
     public async Task<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
+        // WARNING: This method loads ALL entities across ALL tenants
+        // Should only be used by SuperUser operations
+        // Use GetAllByTenantAsync for tenant-scoped queries
         return await _collection.Find(_ => true).ToListAsync(cancellationToken);
     }
 
@@ -46,5 +50,32 @@ public class MongoRepository<T> : IRepository<T> where T : BaseEntity
         FilterDefinition<T> filter = Builders<T>.Filter.Eq(e => e.Id, id);
         DeleteResult result = await _collection.DeleteOneAsync(filter, cancellationToken);
         return result.DeletedCount > 0;
+    }
+
+    // Tenant-scoped methods for secure multi-tenancy
+    public async Task<T?> GetByIdAndTenantAsync(string id, string tenantId, CancellationToken cancellationToken = default)
+    {
+        FilterDefinition<T> filter = Builders<T>.Filter.And(
+            Builders<T>.Filter.Eq(e => e.Id, id),
+            Builders<T>.Filter.Eq(e => e.TenantId, tenantId)
+        );
+        return await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<T>> GetAllByTenantAsync(string tenantId, CancellationToken cancellationToken = default)
+    {
+        FilterDefinition<T> filter = Builders<T>.Filter.Eq(e => e.TenantId, tenantId);
+        return await _collection.Find(filter).ToListAsync(cancellationToken);
+    }
+
+    // Generic filter methods for custom queries
+    public async Task<T?> FindOneAsync(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default)
+    {
+        return await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default)
+    {
+        return await _collection.Find(filter).ToListAsync(cancellationToken);
     }
 }

@@ -192,10 +192,20 @@ public class BusinessService : IBusinessService
     {
         Business? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
-        // Ensure tenant isolation
-        if (entity == null || entity.TenantId != _tenantProvider.GetTenantId())
+        if (entity == null)
         {
             return false;
+        }
+
+        // Check authorization
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        string currentTenantId = _tenantProvider.GetTenantId();
+
+        // Super-users can delete any business (cross-tenant access)
+        // Other users (shouldn't reach here due to endpoint authorization, but enforce anyway)
+        if (!isSuperUser && entity.TenantId != currentTenantId)
+        {
+            return false; // Not authorized or not found
         }
 
         return await _repository.DeleteAsync(id, cancellationToken);

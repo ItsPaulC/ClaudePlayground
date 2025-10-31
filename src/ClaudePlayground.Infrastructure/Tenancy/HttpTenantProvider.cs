@@ -21,19 +21,10 @@ public class HttpTenantProvider : ITenantProvider
             return string.Empty;
         }
 
-        // Try to get tenant ID from JWT claim first
+        // SECURITY: Only trust tenant ID from JWT claim
+        // Never trust client-provided headers as they can be spoofed
         string? tenantFromClaim = httpContext.User?.FindFirst("ten")?.Value;
-        if (!string.IsNullOrEmpty(tenantFromClaim))
-        {
-            return tenantFromClaim;
-        }
 
-        // Fall back to header for backward compatibility
-        if (httpContext.Request.Headers.TryGetValue("X-Tenant-Id", out Microsoft.Extensions.Primitives.StringValues tenantId))
-        {
-            return tenantId.ToString();
-        }
-
-        return string.Empty;
+        return tenantFromClaim ?? string.Empty;
     }
 }
