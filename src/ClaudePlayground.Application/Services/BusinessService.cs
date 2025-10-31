@@ -1,20 +1,41 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Domain.Entities;
 using ClaudePlayground.Domain.ValueObjects;
+using Microsoft.IdentityModel.Tokens;
+using MongoDB.Driver;
 
 namespace ClaudePlayground.Application.Services;
 
 public class BusinessService : IBusinessService
 {
     private readonly IRepository<Business> _repository;
+    private readonly IRepository<User> _userRepository;
+    private readonly IRepository<RefreshToken> _refreshTokenRepository;
     private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly JwtSettings _jwtSettings;
 
-    public BusinessService(IRepository<Business> repository, ITenantProvider tenantProvider)
+    public BusinessService(
+        IRepository<Business> repository,
+        IRepository<User> userRepository,
+        IRepository<RefreshToken> refreshTokenRepository,
+        ITenantProvider tenantProvider,
+        ICurrentUserService currentUserService,
+        JwtSettings jwtSettings)
     {
         _repository = repository;
+        _userRepository = userRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _tenantProvider = tenantProvider;
+        _currentUserService = currentUserService;
+        _jwtSettings = jwtSettings;
     }
 
     public async Task<BusinessDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
@@ -34,7 +55,15 @@ public class BusinessService : IBusinessService
     {
         IEnumerable<Business> entities = await _repository.GetAllAsync(cancellationToken);
 
-        // Filter by current tenant
+        // Super-users can see all businesses (cross-tenant access)
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+
+        if (isSuperUser)
+        {
+            return entities.Select(MapToDto);
+        }
+
+        // Other users filtered by tenant (shouldn't reach here due to endpoint authorization)
         string currentTenantId = _tenantProvider.GetTenantId();
         return entities
             .Where(e => e.TenantId == currentTenantId)
@@ -58,13 +87,92 @@ public class BusinessService : IBusinessService
         return MapToDto(created);
     }
 
+    public async Task<BusinessWithUserDto> CreateWithUserAsync(CreateBusinessWithUserDto dto, CancellationToken cancellationToken = default)
+    {
+        // Check if user already exists
+        IEnumerable<User> existingUsers = await _userRepository.GetAllAsync(cancellationToken);
+        User? existingUser = existingUsers.FirstOrDefault(u => u.Email.Equals(dto.UserEmail, StringComparison.OrdinalIgnoreCase));
+
+        if (existingUser != null)
+        {
+            throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
+        }
+
+        // Create the business - the business ID will be the tenant ID
+        Business business = new()
+        {
+            Name = dto.Name,
+            Description = dto.Description,
+            Address = MapToAddress(dto.Address),
+            PhoneNumber = dto.PhoneNumber,
+            Email = dto.Email,
+            Website = dto.Website
+        };
+
+        // Set the business's tenant ID to its own ID (self-referencing)
+        business.TenantId = business.Id;
+
+        Business createdBusiness = await _repository.CreateAsync(business, cancellationToken);
+
+        // Create the BusinessOwner for this business tenant
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword);
+
+        User user = new()
+        {
+            Email = dto.UserEmail.ToLowerInvariant(),
+            PasswordHash = passwordHash,
+            FirstName = dto.UserFirstName,
+            LastName = dto.UserLastName,
+            IsActive = true,
+            Roles = [Roles.BusinessOwner],
+            TenantId = createdBusiness.Id // User belongs to the business tenant
+        };
+
+        User createdUser;
+        try
+        {
+            createdUser = await _userRepository.CreateAsync(user, cancellationToken);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // Handle race condition where another request created a user with the same email
+            throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
+        }
+
+        // Generate JWT token
+        string token = GenerateJwtToken(createdUser);
+
+        // Generate and save refresh token
+        string refreshToken = await GenerateAndSaveRefreshTokenAsync(createdUser.Id, cancellationToken);
+
+        return new BusinessWithUserDto(
+            MapToDto(createdBusiness),
+            createdUser.Id,
+            createdUser.Email,
+            token,
+            refreshToken
+        );
+    }
+
     public async Task<BusinessDto> UpdateAsync(string id, UpdateBusinessDto dto, CancellationToken cancellationToken = default)
     {
         Business? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
-        if (entity == null || entity.TenantId != _tenantProvider.GetTenantId())
+        if (entity == null)
         {
             throw new KeyNotFoundException($"Business with ID {id} not found");
+        }
+
+        // Check authorization
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+        string currentTenantId = _tenantProvider.GetTenantId();
+
+        // Super-users can update any business
+        // BusinessOwners can only update businesses in their own tenant
+        if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
+        {
+            throw new UnauthorizedAccessException("You do not have permission to update this business");
         }
 
         entity.Name = dto.Name;
@@ -140,5 +248,60 @@ public class BusinessService : IBusinessService
             address.ZipCode,
             address.Country
         );
+    }
+
+    internal string GenerateJwtToken(User user)
+    {
+        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+        SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
+
+        List<Claim> claims = new()
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim("ten", user.TenantId)
+        };
+
+        // Add role claims
+        foreach (var role in user.Roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role.Value));
+        }
+
+        JwtSecurityToken token = new(
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    internal async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
+    {
+        // Generate cryptographically secure random token
+        byte[] randomBytes = new byte[64];
+        using RandomNumberGenerator rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomBytes);
+        string token = Convert.ToBase64String(randomBytes);
+
+        // Create refresh token entity
+        RefreshToken refreshToken = new()
+        {
+            Token = token,
+            UserId = userId,
+            ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
+            IsRevoked = false,
+            TenantId = userId // Using userId as tenant for now
+        };
+
+        // Save to database
+        await _refreshTokenRepository.CreateAsync(refreshToken, ct);
+
+        return token;
     }
 }

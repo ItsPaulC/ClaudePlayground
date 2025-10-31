@@ -1,5 +1,6 @@
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
+using ClaudePlayground.Domain.Common;
 
 namespace ClaudePlayground.Api.Endpoints;
 
@@ -8,16 +9,20 @@ public static class BusinessEndpoints
     public static IEndpointRouteBuilder MapBusinessEndpoints(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder group = app.MapGroup("/api/businesses")
-            .WithTags("Businesses");
+            .WithTags("Businesses")
+            .RequireAuthorization();
 
+        // Get All Businesses - Super-user only (cross-tenant access)
         group.MapGet("/", async (IBusinessService service, CancellationToken ct) =>
         {
             IEnumerable<BusinessDto> businesses = await service.GetAllAsync(ct);
             return Results.Ok(businesses);
         })
         .WithName("GetAllBusinesses")
-        .WithOpenApi();
+        .WithOpenApi()
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
+        // Get Business by ID - Authenticated users (tenant-scoped)
         group.MapGet("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
         {
             BusinessDto? business = await service.GetByIdAsync(id, ct);
@@ -26,14 +31,34 @@ public static class BusinessEndpoints
         .WithName("GetBusinessById")
         .WithOpenApi();
 
+        app.MapPost("/api/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
+        {
+            try
+            {
+                BusinessWithUserDto result = await service.CreateWithUserAsync(dto, ct);
+                return Results.Created($"/api/businesses/{result.Business.Id}", result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        })
+        .WithName("CreateBusinessWithUser")
+        .WithOpenApi()
+        .WithTags("Businesses")
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
+
+        // Create Business - Super-user only
         group.MapPost("/", async (CreateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
         {
             BusinessDto business = await service.CreateAsync(dto, ct);
             return Results.Created($"/api/businesses/{business.Id}", business);
         })
         .WithName("CreateBusiness")
-        .WithOpenApi();
+        .WithOpenApi()
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
+        // Update Business - Super-user (any) or BusinessOwner (own tenant only)
         group.MapPut("/{id}", async (string id, UpdateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
         {
             try
@@ -45,17 +70,24 @@ public static class BusinessEndpoints
             {
                 return Results.NotFound();
             }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Forbid();
+            }
         })
         .WithName("UpdateBusiness")
-        .WithOpenApi();
+        .WithOpenApi()
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
+        // Delete Business - Super-user only
         group.MapDelete("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
         {
             bool deleted = await service.DeleteAsync(id, ct);
             return deleted ? Results.NoContent() : Results.NotFound();
         })
         .WithName("DeleteBusiness")
-        .WithOpenApi();
+        .WithOpenApi()
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         return app;
     }

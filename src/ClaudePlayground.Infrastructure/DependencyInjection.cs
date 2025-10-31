@@ -5,6 +5,7 @@ using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Infrastructure.Configuration;
 using ClaudePlayground.Infrastructure.Persistence;
 using ClaudePlayground.Infrastructure.Repositories;
+using ClaudePlayground.Infrastructure.Services;
 using ClaudePlayground.Infrastructure.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,12 +35,19 @@ public static class DependencyInjection
         // Multi-Tenancy
         services.AddScoped<ITenantProvider, HttpTenantProvider>();
 
+        // Current User Service
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+        // Email Service
+        services.AddScoped<IEmailService, ConsoleEmailService>();
+
         // Repository Registration
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
 
         // Application Services
         services.AddScoped<IBusinessService, BusinessService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
 
         return services;
     }

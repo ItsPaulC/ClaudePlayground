@@ -1,4 +1,13 @@
-### Register a new user
+### RECOMMENDED: Create a new business with super-user
+# See Business.http for the /api/businesses/with-user endpoint
+# This is the recommended way to create a new tenant and its first user
+# The business ID becomes the tenant ID
+
+### Register a new user (no roles - regular user)
+# NOTE: When registering, the user's tenantId will be their email (legacy behavior)
+# For proper multi-tenant setup, use the Business creation endpoint instead
+# Response includes: token, refreshToken, tenantId, email, firstName, lastName
+# Use the tenantId in X-Tenant-Id header for subsequent API calls
 POST https://localhost:5001/api/auth/register
 Content-Type: application/json
 
@@ -9,7 +18,54 @@ Content-Type: application/json
   "lastName": "Doe"
 }
 
+### Register a super-user
+# Super-users can:
+# - Create businesses (cross-tenant)
+# - Get all businesses (cross-tenant)
+# - Update any business (cross-tenant)
+# - Delete any business (cross-tenant)
+# Roles are now objects with name, abbreviation, and value properties
+POST https://localhost:5001/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "superuser@example.com",
+  "password": "SuperUser123!",
+  "firstName": "Super",
+  "lastName": "User",
+  "roles": [
+    {
+      "name": "Super User",
+      "abbreviation": "SU",
+      "value": "super-user"
+    }
+  ]
+}
+
+### Register an admin
+# Admins can:
+# - Update businesses only within their own tenant
+# Roles are now objects with name, abbreviation, and value properties
+POST https://localhost:5001/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "Admin123!",
+  "firstName": "Admin",
+  "lastName": "User",
+  "roles": [
+    {
+      "name": "Administrator",
+      "abbreviation": "ADM",
+      "value": "admin"
+    }
+  ]
+}
+
 ### Login with credentials
+# Response includes: token, refreshToken, tenantId, email, firstName, lastName
+# Use the tenantId in X-Tenant-Id header for subsequent API calls
 POST https://localhost:5001/api/auth/login
 Content-Type: application/json
 
@@ -22,3 +78,30 @@ Content-Type: application/json
 # Replace YOUR_JWT_TOKEN with the token from login response
 GET https://localhost:5001/api/auth/me
 Authorization: Bearer YOUR_JWT_TOKEN
+
+### Change password (requires authentication)
+# Replace YOUR_JWT_TOKEN with the token from login response
+POST https://localhost:5001/api/auth/change-password
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+  "currentPassword": "Test123!",
+  "newPassword": "NewTest456!"
+}
+
+### Refresh access token
+# Replace YOUR_REFRESH_TOKEN with the refreshToken from login/register response
+POST https://localhost:5001/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "YOUR_REFRESH_TOKEN"
+}
+
+### Example: Using TenantId in Business API calls
+# After login/register, use the tenantId from the response in X-Tenant-Id header
+# This ensures multi-tenant data isolation
+GET https://localhost:5001/api/businesses
+Authorization: Bearer YOUR_JWT_TOKEN
+X-Tenant-Id: YOUR_TENANT_ID

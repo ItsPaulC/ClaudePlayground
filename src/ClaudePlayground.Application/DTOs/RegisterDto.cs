@@ -1,8 +1,11 @@
+using ClaudePlayground.Domain.ValueObjects;
+
 namespace ClaudePlayground.Application.DTOs;
 
 public record RegisterDto(
     string Email,
     string Password,
     string? FirstName,
-    string? LastName
+    string? LastName,
+    IEnumerable<Role>? Roles = null
 );
