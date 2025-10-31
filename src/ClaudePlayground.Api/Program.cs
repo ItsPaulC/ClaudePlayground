@@ -5,7 +5,12 @@ using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Infrastructure;
 using ClaudePlayground.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
+using ZiggyCreatures.Caching.Fusion;
+using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
+using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +43,32 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// Configure Redis
+string redisConnectionString = builder.Configuration["RedisSettings:ConnectionString"] ?? "localhost:6379";
+string redisInstanceName = builder.Configuration["RedisSettings:InstanceName"] ?? "ClaudePlayground:";
+
+IConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConnectionString);
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+
+// Add FusionCache with Redis
+builder.Services.AddFusionCache()
+    .WithSerializer(
+        new FusionCacheSystemTextJsonSerializer()
+    )
+    .WithDistributedCache(
+        new RedisCache(new RedisCacheOptions
+        {
+            Configuration = redisConnectionString,
+            InstanceName = redisInstanceName
+        })
+    )
+    .WithBackplane(
+        new RedisBackplane(new RedisBackplaneOptions
+        {
+            Configuration = redisConnectionString
+        })
+    );
 
 WebApplication app = builder.Build();
 
