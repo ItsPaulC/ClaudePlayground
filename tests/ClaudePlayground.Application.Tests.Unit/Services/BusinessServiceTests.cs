@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
@@ -271,13 +272,16 @@ public class BusinessServiceTests
             Roles = new List<Role> { Roles.BusinessOwner }
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         _businessRepository.CreateAsync(Arg.Any<Business>(), Arg.Any<CancellationToken>())
             .Returns(createdBusiness);
 
         _userRepository.CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+            .Returns(createdUser);
+
+        _userRepository.GetByIdAsync("user123", Arg.Any<CancellationToken>())
             .Returns(createdUser);
 
         _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
@@ -334,8 +338,8 @@ public class BusinessServiceTests
             TenantId = "tenant123"
         };
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User> { existingUser });
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(existingUser);
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -634,12 +638,21 @@ public class BusinessServiceTests
     {
         // Arrange
         var userId = "user123";
+        var user = new User
+        {
+            Id = userId,
+            Email = "test@example.com",
+            TenantId = "tenant123"
+        };
         var refreshToken = new RefreshToken
         {
             Token = "generated-token",
             UserId = userId,
-            TenantId = userId
+            TenantId = "tenant123"
         };
+
+        _userRepository.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(user);
 
         _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
             .Returns(refreshToken);

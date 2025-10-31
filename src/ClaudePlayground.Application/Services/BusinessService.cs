@@ -89,9 +89,10 @@ public class BusinessService : IBusinessService
 
     public async Task<BusinessWithUserDto> CreateWithUserAsync(CreateBusinessWithUserDto dto, CancellationToken cancellationToken = default)
     {
-        // Check if user already exists
-        IEnumerable<User> existingUsers = await _userRepository.GetAllAsync(cancellationToken);
-        User? existingUser = existingUsers.FirstOrDefault(u => u.Email.Equals(dto.UserEmail, StringComparison.OrdinalIgnoreCase));
+        // Check if user already exists - use efficient query
+        User? existingUser = await _userRepository.FindOneAsync(
+            u => u.Email.ToLower() == dto.UserEmail.ToLower(),
+            cancellationToken);
 
         if (existingUser != null)
         {
@@ -293,20 +294,27 @@ public class BusinessService : IBusinessService
 
     internal async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
     {
+        // Get the user to obtain their actual tenant ID
+        User? user = await _userRepository.GetByIdAsync(userId, ct);
+        if (user == null)
+        {
+            throw new InvalidOperationException($"User with ID {userId} not found");
+        }
+
         // Generate cryptographically secure random token
         byte[] randomBytes = new byte[64];
         using RandomNumberGenerator rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
         string token = Convert.ToBase64String(randomBytes);
 
-        // Create refresh token entity
+        // Create refresh token entity with correct tenant ID
         RefreshToken refreshToken = new()
         {
             Token = token,
             UserId = userId,
             ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
             IsRevoked = false,
-            TenantId = userId // Using userId as tenant for now
+            TenantId = user.TenantId // Use the user's actual tenant ID
         };
 
         // Save to database
