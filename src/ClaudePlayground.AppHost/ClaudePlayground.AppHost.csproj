@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClaudePlayground.Api\ClaudePlayground.Api.csproj" />
+    <ProjectReference Include="..\ClaudePlayground.Web\ClaudePlayground.Web.csproj" />
   </ItemGroup>
 
 </Project>

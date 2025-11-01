@@ -12,11 +12,16 @@ var redis = builder.AddRedis("redis")
 
 // Add the API project with MongoDB connection string
 var mongoEndpoint = mongodb.GetEndpoint("tcp");
-builder.AddProject<Projects.ClaudePlayground_Api>("api")
+var api = builder.AddProject<Projects.ClaudePlayground_Api>("api")
     .WithEnvironment("ConnectionStrings__mongodb",
         ReferenceExpression.Create($"mongodb://{mongoEndpoint.Property(EndpointProperty.Host)}:{mongoEndpoint.Property(EndpointProperty.Port)}"))
     .WithReference(redis)
     .WaitFor(mongodb)
     .WaitFor(redis);
+
+// Add the Blazor Web application
+builder.AddProject<Projects.ClaudePlayground_Web>("web")
+    .WithReference(api)
+    .WaitFor(api);
 
 builder.Build().Run();

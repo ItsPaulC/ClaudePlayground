@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/ClaudePlayground.AppHost/ClaudePlayground.AppHost.csproj" />
     <Project Path="src/ClaudePlayground.ServiceDefaults/ClaudePlayground.ServiceDefaults.csproj" />
+    <Project Path="src/ClaudePlayground.Web/ClaudePlayground.Web.csproj" />
     <Project Path="src\ClaudePlayground.Api\ClaudePlayground.Api.csproj" />
     <Project Path="src\ClaudePlayground.Application\ClaudePlayground.Application.csproj" />
     <Project Path="src\ClaudePlayground.Domain\ClaudePlayground.Domain.csproj" />
