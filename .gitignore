@@ -54,3 +54,6 @@ msbuild.wrn
 *.swp
 *.*~
 *.bak
+
+## Aspire data volumes
+mongodb-data/
