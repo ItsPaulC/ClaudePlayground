@@ -23,7 +23,8 @@ public static class DependencyInjection
 
         // MongoDB Configuration
         // Support both Aspire connection strings and traditional appsettings.json
-        string? aspireConnectionString = configuration.GetConnectionString("ClaudePlayground");
+        string? aspireConnectionString = configuration.GetConnectionString("mongodb")
+            ?? configuration.GetConnectionString("ClaudePlayground");
 
         MongoDbSettings mongoSettings;
         if (!string.IsNullOrEmpty(aspireConnectionString))
