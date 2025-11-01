@@ -14,6 +14,9 @@ using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+// Add Aspire service defaults (observability, service discovery, resilience)
+builder.AddServiceDefaults();
+
 // Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -63,7 +66,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // Configure Redis
-string redisConnectionString = builder.Configuration["RedisSettings:ConnectionString"] ?? "localhost:6379";
+// Support both Aspire connection strings and traditional appsettings.json
+string redisConnectionString = builder.Configuration.GetConnectionString("redis")
+    ?? builder.Configuration["RedisSettings:ConnectionString"]
+    ?? "localhost:6379";
 string redisInstanceName = builder.Configuration["RedisSettings:InstanceName"] ?? "ClaudePlayground:";
 
 IConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConnectionString);
@@ -113,5 +119,8 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapBusinessEndpoints();
 app.MapUserEndpoints();
+
+// Map Aspire default endpoints (health checks, etc.)
+app.MapDefaultEndpoints();
 
 app.Run();

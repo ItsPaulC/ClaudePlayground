@@ -18,5 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ClaudePlayground.Application\ClaudePlayground.Application.csproj" />
     <ProjectReference Include="..\ClaudePlayground.Infrastructure\ClaudePlayground.Infrastructure.csproj" />
+    <ProjectReference Include="..\ClaudePlayground.ServiceDefaults\ClaudePlayground.ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>

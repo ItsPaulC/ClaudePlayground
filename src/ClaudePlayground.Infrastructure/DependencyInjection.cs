@@ -22,8 +22,26 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
 
         // MongoDB Configuration
-        MongoDbSettings mongoSettings = configuration.GetSection("MongoDbSettings").Get<MongoDbSettings>()
-            ?? new();
+        // Support both Aspire connection strings and traditional appsettings.json
+        string? aspireConnectionString = configuration.GetConnectionString("ClaudePlayground");
+
+        MongoDbSettings mongoSettings;
+        if (!string.IsNullOrEmpty(aspireConnectionString))
+        {
+            // Use Aspire-provided connection string
+            mongoSettings = new MongoDbSettings
+            {
+                ConnectionString = aspireConnectionString,
+                DatabaseName = "ClaudePlayground"
+            };
+        }
+        else
+        {
+            // Fall back to appsettings.json configuration
+            mongoSettings = configuration.GetSection("MongoDbSettings").Get<MongoDbSettings>()
+                ?? new();
+        }
+
         services.AddSingleton(mongoSettings);
         services.AddSingleton<MongoDbContext>();
 

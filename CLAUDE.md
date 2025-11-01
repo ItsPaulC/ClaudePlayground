@@ -4,16 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a .NET 8 Web API project implementing **Clean Architecture** principles with MongoDB as the database. The solution is structured in four layers with clear separation of concerns.
+This is a .NET 8 Web API project implementing **Clean Architecture** principles with MongoDB as the database, orchestrated with **.NET Aspire** for local development and cloud deployment. The solution is structured in four layers with clear separation of concerns and uses Aspire for service orchestration, observability, and deployment.
 
 ## Project Structure
 
 ```
 ClaudePlayground/
 ├── ClaudePlayground.slnx              # Solution file (XML-based .slnx format)
-├── docker-compose.yml                 # MongoDB container configuration
+├── docker-compose.yml                 # MongoDB container configuration (legacy)
 ├── CLAUDE.md                          # Documentation for Claude Code
 ├── src/                               # Source code directory
+│   ├── ClaudePlayground.AppHost/      # Aspire App Host (Orchestration)
+│   │   └── AppHost.cs                 # Aspire orchestration configuration
+│   ├── ClaudePlayground.ServiceDefaults/ # Aspire Service Defaults (Shared config)
+│   │   └── Extensions.cs              # Observability, resilience, service discovery
 │   ├── ClaudePlayground.Api/          # Presentation Layer (Web API)
 │   │   ├── Program.cs                 # Entry point and DI configuration
 │   │   ├── appsettings.json           # Configuration (MongoDB connection, etc.)
@@ -41,6 +45,52 @@ ClaudePlayground/
 ```
 
 ## Common Commands
+
+### Running with .NET Aspire (Recommended)
+
+**.NET Aspire** provides the easiest way to run the entire application stack locally with a single command. Aspire automatically handles:
+- Starting MongoDB in a container
+- Service discovery and configuration
+- Observability (metrics, traces, logs) via a dashboard
+- Health checks
+
+#### Prerequisites
+- Docker Desktop must be running
+- .NET Aspire workload installed (see Installation section below)
+
+#### Running the Application
+
+```bash
+# Run from the ClaudePlayground directory
+dotnet run --project src/ClaudePlayground.AppHost
+
+# This will:
+# 1. Start MongoDB in a container automatically
+# 2. Start the API with proper configuration
+# 3. Open the Aspire Dashboard (http://localhost:15000 or similar)
+```
+
+The Aspire Dashboard provides:
+- **Resources**: View running services and their status
+- **Console Logs**: See output from all services
+- **Traces**: Distributed tracing across services
+- **Metrics**: Performance metrics and health data
+- **Environment Variables**: View configuration for each service
+
+#### Accessing the Application
+
+Once running via Aspire:
+- **API**: Check the Aspire dashboard for the API endpoint (typically https://localhost:7XXX)
+- **Swagger**: Navigate to the API endpoint + `/swagger`
+- **Aspire Dashboard**: Automatically opens in your browser
+
+#### Installation (One-time setup)
+
+If you need to install the .NET Aspire workload:
+
+```bash
+dotnet workload install aspire
+```
 
 ### Solution-Level Commands
 Run these from the `ClaudePlayground` directory:
@@ -445,3 +495,101 @@ public async Task YourTest()
 ```
 
 4. Follow AAA (Arrange-Act-Assert) pattern and use xUnit assertions
+
+## Deployment to Azure with .NET Aspire
+
+.NET Aspire simplifies deploying to Azure by automatically provisioning the required infrastructure.
+
+### Prerequisites
+
+1. Azure account with an active subscription
+2. Azure CLI installed and logged in:
+   ```bash
+   az login
+   ```
+3. Azure Developer CLI (azd) installed:
+   ```bash
+   # Windows (winget)
+   winget install microsoft.azd
+
+   # macOS (brew)
+   brew tap azure/azd && brew install azd
+   ```
+
+### Deployment Steps
+
+1. **Initialize Azure Developer CLI** (one-time setup):
+   ```bash
+   # Run from the ClaudePlayground directory
+   azd init
+   ```
+
+   When prompted:
+   - Environment name: Choose a name (e.g., `dev`, `prod`)
+   - Azure subscription: Select your subscription
+   - Azure region: Choose a region (e.g., `eastus`, `westus2`)
+
+2. **Provision and Deploy**:
+   ```bash
+   azd up
+   ```
+
+   This command will:
+   - Create an Azure Resource Group
+   - Provision Azure Container Apps for the API
+   - Provision Azure Cosmos DB for MongoDB (or Azure Container Instance for MongoDB)
+   - Configure networking, service discovery, and observability
+   - Deploy your application code
+   - Set up application insights for monitoring
+
+3. **View Deployment**:
+   ```bash
+   # Get the API endpoint
+   azd show
+
+   # Open in browser
+   azd browse
+   ```
+
+### Updating Deployment
+
+After making code changes:
+
+```bash
+# Deploy updates
+azd deploy
+```
+
+### Configuration for Production
+
+Before deploying to production, ensure you:
+
+1. **Set production secrets** via Azure Key Vault or environment variables:
+   ```bash
+   azd env set JWT_SECRET_KEY "your-secure-32-character-or-longer-key"
+   ```
+
+2. **Configure MongoDB**: Update AppHost.cs to use Azure Cosmos DB for MongoDB in production
+3. **Set up Redis**: Configure Azure Cache for Redis if using caching
+
+### Monitoring in Azure
+
+Once deployed, you can monitor your application:
+- **Application Insights**: Automatic logging, metrics, and distributed tracing
+- **Azure Portal**: View container logs, metrics, and resource health
+- **Log Analytics**: Query logs and create dashboards
+
+### Cost Optimization
+
+For development/testing:
+- Use Azure Container Apps consumption plan (pay-per-use)
+- Consider MongoDB in container vs. Cosmos DB for MongoDB
+- Scale to zero when not in use
+
+### Clean Up
+
+To delete all Azure resources:
+
+```bash
+azd down
+```
