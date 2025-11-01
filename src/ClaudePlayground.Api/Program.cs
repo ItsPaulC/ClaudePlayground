@@ -66,7 +66,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // Configure Redis
-string redisConnectionString = builder.Configuration["RedisSettings:ConnectionString"] ?? "localhost:6379";
+// Support both Aspire connection strings and traditional appsettings.json
+string redisConnectionString = builder.Configuration.GetConnectionString("redis")
+    ?? builder.Configuration["RedisSettings:ConnectionString"]
+    ?? "localhost:6379";
 string redisInstanceName = builder.Configuration["RedisSettings:InstanceName"] ?? "ClaudePlayground:";
 
 IConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConnectionString);
