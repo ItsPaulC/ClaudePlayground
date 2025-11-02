@@ -1,14 +1,8 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
-using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Domain.Entities;
 using ClaudePlayground.Domain.ValueObjects;
-using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 
 namespace ClaudePlayground.Application.Services;
@@ -17,25 +11,22 @@ public class BusinessService : IBusinessService
 {
     private readonly IRepository<Business> _repository;
     private readonly IRepository<User> _userRepository;
-    private readonly IRepository<RefreshToken> _refreshTokenRepository;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserService _currentUserService;
-    private readonly JwtSettings _jwtSettings;
+    private readonly IAuthService _authService;
 
     public BusinessService(
         IRepository<Business> repository,
         IRepository<User> userRepository,
-        IRepository<RefreshToken> refreshTokenRepository,
         ITenantProvider tenantProvider,
         ICurrentUserService currentUserService,
-        JwtSettings jwtSettings)
+        IAuthService authService)
     {
         _repository = repository;
         _userRepository = userRepository;
-        _refreshTokenRepository = refreshTokenRepository;
         _tenantProvider = tenantProvider;
         _currentUserService = currentUserService;
-        _jwtSettings = jwtSettings;
+        _authService = authService;
     }
 
     public async Task<BusinessDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
@@ -140,11 +131,11 @@ public class BusinessService : IBusinessService
             throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
         }
 
-        // Generate JWT token
-        string token = GenerateJwtToken(createdUser);
+        // Generate JWT token using AuthService
+        string token = _authService.GenerateJwtToken(createdUser);
 
-        // Generate and save refresh token
-        string refreshToken = await GenerateAndSaveRefreshTokenAsync(createdUser.Id, cancellationToken);
+        // Generate and save refresh token using AuthService
+        string refreshToken = await _authService.GenerateAndSaveRefreshTokenAsync(createdUser.Id, cancellationToken);
 
         return new BusinessWithUserDto(
             MapToDto(createdBusiness),
@@ -259,67 +250,5 @@ public class BusinessService : IBusinessService
             address.ZipCode,
             address.Country
         );
-    }
-
-    internal string GenerateJwtToken(User user)
-    {
-        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
-        SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
-
-        List<Claim> claims = new()
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim("ten", user.TenantId)
-        };
-
-        // Add role claims
-        foreach (var role in user.Roles)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, role.Value));
-        }
-
-        JwtSecurityToken token = new(
-            issuer: _jwtSettings.Issuer,
-            audience: _jwtSettings.Audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
-            signingCredentials: credentials
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
-
-    internal async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
-    {
-        // Get the user to obtain their actual tenant ID
-        User? user = await _userRepository.GetByIdAsync(userId, ct);
-        if (user == null)
-        {
-            throw new InvalidOperationException($"User with ID {userId} not found");
-        }
-
-        // Generate cryptographically secure random token
-        var randomBytes = new byte[64];
-        using RandomNumberGenerator rng = RandomNumberGenerator.Create();
-        rng.GetBytes(randomBytes);
-        string token = Convert.ToBase64String(randomBytes);
-
-        // Create refresh token entity with correct tenant ID
-        RefreshToken refreshToken = new()
-        {
-            Token = token,
-            UserId = userId,
-            ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
-            IsRevoked = false,
-            TenantId = user.TenantId // Use the user's actual tenant ID
-        };
-
-        // Save to database
-        await _refreshTokenRepository.CreateAsync(refreshToken, ct);
-
-        return token;
     }
 }

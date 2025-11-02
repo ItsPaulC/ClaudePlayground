@@ -292,7 +292,7 @@ public class AuthService : IAuthService
         return true;
     }
 
-    internal string GenerateJwtToken(User user)
+    public string GenerateJwtToken(User user)
     {
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
@@ -376,7 +376,7 @@ public class AuthService : IAuthService
         );
     }
 
-    internal async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
+    public async Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default)
     {
         // Get the user to obtain their actual tenant ID
         User? user = await _userRepository.GetByIdAsync(userId, ct);

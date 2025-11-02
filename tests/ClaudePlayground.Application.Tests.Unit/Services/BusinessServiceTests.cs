@@ -21,37 +21,26 @@ public class BusinessServiceTests
     // Mocks (member variables)
     private readonly IRepository<Business> _businessRepository;
     private readonly IRepository<User> _userRepository;
-    private readonly IRepository<RefreshToken> _refreshTokenRepository;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAuthService _authService;
 
     public BusinessServiceTests()
     {
         // Initialize mocks
         _businessRepository = Substitute.For<IRepository<Business>>();
         _userRepository = Substitute.For<IRepository<User>>();
-        _refreshTokenRepository = Substitute.For<IRepository<RefreshToken>>();
         _tenantProvider = Substitute.For<ITenantProvider>();
         _currentUserService = Substitute.For<ICurrentUserService>();
-
-        // Create test JWT settings
-        JwtSettings jwtSettings = new()
-        {
-            SecretKey = "ThisIsASecretKeyForTestingPurposesOnly1234567890",
-            Issuer = "TestIssuer",
-            Audience = "TestAudience",
-            ExpirationMinutes = 60,
-            RefreshTokenExpirationDays = 7
-        };
+        _authService = Substitute.For<IAuthService>();
 
         // Create System Under Test
         _sut = new BusinessService(
             _businessRepository,
             _userRepository,
-            _refreshTokenRepository,
             _tenantProvider,
             _currentUserService,
-            jwtSettings
+            _authService
         );
     }
 
@@ -281,11 +270,12 @@ public class BusinessServiceTests
         _userRepository.CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
             .Returns(createdUser);
 
-        _userRepository.GetByIdAsync("user123", Arg.Any<CancellationToken>())
-            .Returns(createdUser);
+        // Mock AuthService methods
+        _authService.GenerateJwtToken(Arg.Any<User>())
+            .Returns("jwt-token");
 
-        _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
-            .Returns(new RefreshToken { Token = "refresh-token" });
+        _authService.GenerateAndSaveRefreshTokenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("refresh-token");
 
         // Act
         var result = await _sut.CreateWithUserAsync(createDto, CancellationToken.None);
@@ -600,75 +590,6 @@ public class BusinessServiceTests
 
         await _businessRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
-            Arg.Any<CancellationToken>()
-        );
-    }
-
-    #endregion
-
-    #region GenerateJwtToken Tests (Internal Method)
-
-    [Fact]
-    public void GenerateJwtToken_WithValidUser_ShouldReturnJwtToken()
-    {
-        // Arrange
-        var user = new User
-        {
-            Id = "user123",
-            Email = "test@example.com",
-            TenantId = "tenant123",
-            Roles = new List<Role> { Roles.BusinessOwner }
-        };
-
-        // Act
-        var token = _sut.GenerateJwtToken(user);
-
-        // Assert
-        Assert.NotNull(token);
-        Assert.NotEmpty(token);
-        Assert.Contains('.', token); // JWT format has dots
-    }
-
-    #endregion
-
-    #region GenerateAndSaveRefreshTokenAsync Tests (Internal Method)
-
-    [Fact]
-    public async Task GenerateAndSaveRefreshTokenAsync_ShouldGenerateAndSaveToken()
-    {
-        // Arrange
-        var userId = "user123";
-        var user = new User
-        {
-            Id = userId,
-            Email = "test@example.com",
-            TenantId = "tenant123"
-        };
-        var refreshToken = new RefreshToken
-        {
-            Token = "generated-token",
-            UserId = userId,
-            TenantId = "tenant123"
-        };
-
-        _userRepository.GetByIdAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(user);
-
-        _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
-            .Returns(refreshToken);
-
-        // Act
-        var token = await _sut.GenerateAndSaveRefreshTokenAsync(userId, CancellationToken.None);
-
-        // Assert
-        Assert.NotNull(token);
-        Assert.NotEmpty(token);
-        await _refreshTokenRepository.Received(1).CreateAsync(
-            Arg.Is<RefreshToken>(rt =>
-                rt.UserId == userId &&
-                !rt.IsRevoked &&
-                rt.ExpiresAt > DateTime.UtcNow
-            ),
             Arg.Any<CancellationToken>()
         );
     }

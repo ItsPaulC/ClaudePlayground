@@ -1,4 +1,5 @@
 using ClaudePlayground.Application.DTOs;
+using ClaudePlayground.Domain.Entities;
 
 namespace ClaudePlayground.Application.Interfaces;
 
@@ -12,4 +13,8 @@ public interface IAuthService
     Task<bool> RequestPasswordResetAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken ct = default);
     Task<bool> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken ct = default);
     Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken, CancellationToken ct = default);
+
+    // Token generation methods for use by other services
+    string GenerateJwtToken(User user);
+    Task<string> GenerateAndSaveRefreshTokenAsync(string userId, CancellationToken ct = default);
 }
