@@ -101,8 +101,26 @@ string redisConnectionString = builder.Configuration.GetConnectionString("redis"
     ?? "localhost:6379";
 string redisInstanceName = builder.Configuration["RedisSettings:InstanceName"] ?? "ClaudePlayground:";
 
-IConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConnectionString);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+// Connect to Redis with error handling
+IConnectionMultiplexer redis;
+try
+{
+    redis = ConnectionMultiplexer.Connect(redisConnectionString);
+
+    if (redis == null || !redis.IsConnected)
+    {
+        throw new InvalidOperationException("Redis connection was established but is not connected.");
+    }
+
+    builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+}
+catch (Exception ex)
+{
+    throw new InvalidOperationException(
+        $"Failed to connect to Redis at '{redisConnectionString}'. " +
+        "Ensure Redis is running and accessible. " +
+        $"Error: {ex.Message}", ex);
+}
 
 // Add FusionCache with Redis
 builder.Services.AddFusionCache()
@@ -126,9 +144,20 @@ builder.Services.AddFusionCache()
 WebApplication app = builder.Build();
 
 // Ensure MongoDB indexes are created
-using (IServiceScope scope = app.Services.CreateScope())
+using (IServiceScope? scope = app.Services.CreateScope())
 {
+    if (scope?.ServiceProvider == null)
+    {
+        throw new InvalidOperationException("Failed to create service scope for MongoDB initialization.");
+    }
+
     MongoDbContext dbContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+
+    if (dbContext == null)
+    {
+        throw new InvalidOperationException("Failed to resolve MongoDbContext from service provider.");
+    }
+
     await dbContext.EnsureIndexesAsync();
 }
 
