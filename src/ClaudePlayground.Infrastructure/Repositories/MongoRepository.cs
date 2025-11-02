@@ -78,4 +78,17 @@ public class MongoRepository<T> : IRepository<T> where T : BaseEntity
     {
         return await _collection.Find(filter).ToListAsync(cancellationToken);
     }
+
+    // Session-aware method for transaction support
+    public async Task<T> CreateWithSessionAsync(T entity, object session, CancellationToken cancellationToken = default)
+    {
+        if (session is not IClientSessionHandle clientSession)
+        {
+            throw new ArgumentException("Session must be an IClientSessionHandle", nameof(session));
+        }
+
+        entity.CreatedAt = DateTime.UtcNow;
+        await _collection.InsertOneAsync(clientSession, entity, cancellationToken: cancellationToken);
+        return entity;
+    }
 }

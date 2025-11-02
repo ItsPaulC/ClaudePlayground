@@ -67,6 +67,9 @@ public static class DependencyInjection
         // Repository Registration
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
 
+        // Transaction Manager
+        services.AddScoped<ITransactionManager, MongoTransactionManager>();
+
         // Application Services
         services.AddScoped<IBusinessService, BusinessService>();
         services.AddScoped<IAuthService, AuthService>();

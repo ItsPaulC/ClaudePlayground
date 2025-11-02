@@ -18,4 +18,7 @@ public interface IRepository<T> where T : BaseEntity
     // Generic filter method for custom queries (e.g., by email, etc.)
     Task<T?> FindOneAsync(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default);
     Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default);
+
+    // Session-aware methods for transaction support (session is object to avoid MongoDB dependency in Domain layer)
+    Task<T> CreateWithSessionAsync(T entity, object session, CancellationToken cancellationToken = default);
 }

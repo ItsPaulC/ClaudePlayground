@@ -6,17 +6,23 @@ namespace ClaudePlayground.Infrastructure.Persistence;
 
 public class MongoDbContext
 {
+    private readonly IMongoClient _client;
     private readonly IMongoDatabase _database;
 
     public MongoDbContext(MongoDbSettings settings)
     {
-        MongoClient client = new(settings.ConnectionString);
-        _database = client.GetDatabase(settings.DatabaseName);
+        _client = new MongoClient(settings.ConnectionString);
+        _database = _client.GetDatabase(settings.DatabaseName);
     }
 
     public IMongoCollection<T> GetCollection<T>(string name)
     {
         return _database.GetCollection<T>(name);
+    }
+
+    public async Task<IClientSessionHandle> StartSessionAsync(CancellationToken cancellationToken = default)
+    {
+        return await _client.StartSessionAsync(cancellationToken: cancellationToken);
     }
 
     public async Task EnsureIndexesAsync()

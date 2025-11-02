@@ -14,19 +14,22 @@ public class BusinessService : IBusinessService
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuthService _authService;
+    private readonly ITransactionManager _transactionManager;
 
     public BusinessService(
         IRepository<Business> repository,
         IRepository<User> userRepository,
         ITenantProvider tenantProvider,
         ICurrentUserService currentUserService,
-        IAuthService authService)
+        IAuthService authService,
+        ITransactionManager transactionManager)
     {
         _repository = repository;
         _userRepository = userRepository;
         _tenantProvider = tenantProvider;
         _currentUserService = currentUserService;
         _authService = authService;
+        _transactionManager = transactionManager;
     }
 
     public async Task<BusinessDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
@@ -90,51 +93,61 @@ public class BusinessService : IBusinessService
             throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
         }
 
-        // Create the business - the business ID will be the tenant ID
-        Business business = new()
-        {
-            Name = dto.Name,
-            Description = dto.Description,
-            Address = MapToAddress(dto.Address),
-            PhoneNumber = dto.PhoneNumber,
-            Email = dto.Email,
-            Website = dto.Website
-        };
+        // Execute business and user creation within a transaction
+        var (createdBusiness, createdUser) = await _transactionManager.ExecuteInTransactionAsync(
+            async (session, ct) =>
+            {
+                // Create the business - the business ID will be the tenant ID
+                Business business = new()
+                {
+                    Name = dto.Name,
+                    Description = dto.Description,
+                    Address = MapToAddress(dto.Address),
+                    PhoneNumber = dto.PhoneNumber,
+                    Email = dto.Email,
+                    Website = dto.Website
+                };
 
-        // Set the business's tenant ID to its own ID (self-referencing)
-        business.TenantId = business.Id;
+                // Set the business's tenant ID to its own ID (self-referencing)
+                business.TenantId = business.Id;
 
-        Business createdBusiness = await _repository.CreateAsync(business, cancellationToken);
+                // Create business within transaction
+                Business createdBiz = await _repository.CreateWithSessionAsync(business, session, ct);
 
-        // Create the BusinessOwner for this business tenant
-        string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword);
+                // Create the BusinessOwner for this business tenant
+                string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword);
 
-        User user = new()
-        {
-            Email = dto.UserEmail.ToLowerInvariant(),
-            PasswordHash = passwordHash,
-            FirstName = dto.UserFirstName,
-            LastName = dto.UserLastName,
-            IsActive = true,
-            Roles = [Roles.BusinessOwner],
-            TenantId = createdBusiness.Id // User belongs to the business tenant
-        };
+                User user = new()
+                {
+                    Email = dto.UserEmail.ToLowerInvariant(),
+                    PasswordHash = passwordHash,
+                    FirstName = dto.UserFirstName,
+                    LastName = dto.UserLastName,
+                    IsActive = true,
+                    Roles = [Roles.BusinessOwner],
+                    TenantId = createdBiz.Id // User belongs to the business tenant
+                };
 
-        User createdUser;
-        try
-        {
-            createdUser = await _userRepository.CreateAsync(user, cancellationToken);
-        }
-        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-        {
-            // Handle race condition where another request created a user with the same email
-            throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
-        }
+                // Create user within transaction
+                User createdUsr;
+                try
+                {
+                    createdUsr = await _userRepository.CreateWithSessionAsync(user, session, ct);
+                }
+                catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+                {
+                    // Handle race condition where another request created a user with the same email
+                    throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
+                }
 
-        // Generate JWT token using AuthService
+                return (createdBiz, createdUsr);
+            },
+            cancellationToken);
+
+        // Generate JWT token using AuthService (after successful transaction commit)
         string token = _authService.GenerateJwtToken(createdUser);
 
-        // Generate and save refresh token using AuthService
+        // Generate and save refresh token using AuthService (outside transaction)
         string refreshToken = await _authService.GenerateAndSaveRefreshTokenAsync(createdUser.Id, cancellationToken);
 
         return new BusinessWithUserDto(

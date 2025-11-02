@@ -24,6 +24,7 @@ public class BusinessServiceTests
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuthService _authService;
+    private readonly ITransactionManager _transactionManager;
 
     public BusinessServiceTests()
     {
@@ -33,6 +34,7 @@ public class BusinessServiceTests
         _tenantProvider = Substitute.For<ITenantProvider>();
         _currentUserService = Substitute.For<ICurrentUserService>();
         _authService = Substitute.For<IAuthService>();
+        _transactionManager = Substitute.For<ITransactionManager>();
 
         // Create System Under Test
         _sut = new BusinessService(
@@ -40,7 +42,8 @@ public class BusinessServiceTests
             _userRepository,
             _tenantProvider,
             _currentUserService,
-            _authService
+            _authService,
+            _transactionManager
         );
     }
 
@@ -264,10 +267,20 @@ public class BusinessServiceTests
         _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        _businessRepository.CreateAsync(Arg.Any<Business>(), Arg.Any<CancellationToken>())
+        // Mock transaction manager to execute the operation immediately
+        _transactionManager.ExecuteInTransactionAsync(
+            Arg.Any<Func<object, CancellationToken, Task<(Business, User)>>>(),
+            Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var operation = callInfo.Arg<Func<object, CancellationToken, Task<(Business, User)>>>();
+                return operation(new object(), CancellationToken.None);
+            });
+
+        _businessRepository.CreateWithSessionAsync(Arg.Any<Business>(), Arg.Any<object>(), Arg.Any<CancellationToken>())
             .Returns(createdBusiness);
 
-        _userRepository.CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+        _userRepository.CreateWithSessionAsync(Arg.Any<User>(), Arg.Any<object>(), Arg.Any<CancellationToken>())
             .Returns(createdUser);
 
         // Mock AuthService methods
@@ -289,17 +302,19 @@ public class BusinessServiceTests
         Assert.NotEmpty(result.Token);
         Assert.NotEmpty(result.RefreshToken);
 
-        await _businessRepository.Received(1).CreateAsync(
+        await _businessRepository.Received(1).CreateWithSessionAsync(
             Arg.Is<Business>(b => b.TenantId == b.Id),
+            Arg.Any<object>(),
             Arg.Any<CancellationToken>()
         );
 
-        await _userRepository.Received(1).CreateAsync(
+        await _userRepository.Received(1).CreateWithSessionAsync(
             Arg.Is<User>(u =>
                 u.Email == "owner@business.com" &&
                 u.Roles.Any(r => r.Value == Roles.BusinessOwnerValue) &&
                 u.TenantId == createdBusiness.Id
             ),
+            Arg.Any<object>(),
             Arg.Any<CancellationToken>()
         );
     }
