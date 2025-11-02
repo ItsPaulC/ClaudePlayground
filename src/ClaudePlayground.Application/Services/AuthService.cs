@@ -31,7 +31,7 @@ public class AuthService : IAuthService
         _emailService = emailService;
     }
 
-    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto registerDto, CancellationToken ct = default)
+    public async Task<Result<AuthResponseDto>> RegisterAsync(RegisterDto registerDto, CancellationToken ct = default)
     {
         // Check if user already exists - use efficient query instead of loading all users
         User? existingUser = await _userRepository.FindOneAsync(
@@ -40,7 +40,7 @@ public class AuthService : IAuthService
 
         if (existingUser != null)
         {
-            return null; // User already exists
+            return Error.Conflict("User.EmailAlreadyExists", $"User with email {registerDto.Email} already exists");
         }
 
         // Hash the password
@@ -72,15 +72,14 @@ public class AuthService : IAuthService
         catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
         {
             // Handle race condition where another request created a user with the same email
-            return null; // User already exists
+            return Error.Conflict("User.EmailAlreadyExists", $"User with email {registerDto.Email} already exists");
         }
 
         // Send verification email
         await _emailService.SendEmailVerificationAsync(createdUser.Email, verificationToken, ct);
 
-        // Return null - user must verify email before they can login
-        // The calling endpoint should return a message instructing user to check their email
-        return null;
+        // Return success with message - user must verify email before they can login
+        return Error.Validation("User.EmailVerificationRequired", "Registration successful. Please check your email to verify your account before logging in.");
     }
 
     public async Task<bool> VerifyEmailAsync(string token, CancellationToken ct = default)
