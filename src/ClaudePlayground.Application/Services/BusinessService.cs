@@ -32,14 +32,14 @@ public class BusinessService : IBusinessService
         _transactionManager = transactionManager;
     }
 
-    public async Task<BusinessDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<Result<BusinessDto>> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         Business? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         // Ensure tenant isolation
         if (entity == null || entity.TenantId != _tenantProvider.GetTenantId())
         {
-            return null;
+            return Error.NotFound("Business", id);
         }
 
         return MapToDto(entity);
@@ -94,7 +94,7 @@ public class BusinessService : IBusinessService
         );
     }
 
-    public async Task<BusinessDto> CreateAsync(CreateBusinessDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<BusinessDto>> CreateAsync(CreateBusinessDto dto, CancellationToken cancellationToken = default)
     {
         Business entity = new()
         {
@@ -111,7 +111,7 @@ public class BusinessService : IBusinessService
         return MapToDto(created);
     }
 
-    public async Task<BusinessWithUserDto> CreateWithUserAsync(CreateBusinessWithUserDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<BusinessWithUserDto>> CreateWithUserAsync(CreateBusinessWithUserDto dto, CancellationToken cancellationToken = default)
     {
         // Check if user already exists - use efficient query
         User? existingUser = await _userRepository.FindOneAsync(
@@ -120,82 +120,89 @@ public class BusinessService : IBusinessService
 
         if (existingUser != null)
         {
-            throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
+            return Error.Conflict("User.EmailAlreadyExists", $"User with email {dto.UserEmail} already exists");
         }
 
         // Execute business and user creation within a transaction
-        var (createdBusiness, createdUser) = await _transactionManager.ExecuteInTransactionAsync(
-            async (session, ct) =>
-            {
-                // Create the business - the business ID will be the tenant ID
-                Business business = new()
+        try
+        {
+            var (createdBusiness, createdUser) = await _transactionManager.ExecuteInTransactionAsync(
+                async (session, ct) =>
                 {
-                    Name = dto.Name,
-                    Description = dto.Description,
-                    Address = MapToAddress(dto.Address),
-                    PhoneNumber = dto.PhoneNumber,
-                    Email = dto.Email,
-                    Website = dto.Website
-                };
+                    // Create the business - the business ID will be the tenant ID
+                    Business business = new()
+                    {
+                        Name = dto.Name,
+                        Description = dto.Description,
+                        Address = MapToAddress(dto.Address),
+                        PhoneNumber = dto.PhoneNumber,
+                        Email = dto.Email,
+                        Website = dto.Website
+                    };
 
-                // Set the business's tenant ID to its own ID (self-referencing)
-                business.TenantId = business.Id;
+                    // Set the business's tenant ID to its own ID (self-referencing)
+                    business.TenantId = business.Id;
 
-                // Create business within transaction
-                Business createdBiz = await _repository.CreateWithSessionAsync(business, session, ct);
+                    // Create business within transaction
+                    Business createdBiz = await _repository.CreateWithSessionAsync(business, session, ct);
 
-                // Create the BusinessOwner for this business tenant
-                string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword);
+                    // Create the BusinessOwner for this business tenant
+                    string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword);
 
-                User user = new()
-                {
-                    Email = dto.UserEmail.ToLowerInvariant(),
-                    PasswordHash = passwordHash,
-                    FirstName = dto.UserFirstName,
-                    LastName = dto.UserLastName,
-                    IsActive = true,
-                    Roles = [Roles.BusinessOwner],
-                    TenantId = createdBiz.Id // User belongs to the business tenant
-                };
+                    User user = new()
+                    {
+                        Email = dto.UserEmail.ToLowerInvariant(),
+                        PasswordHash = passwordHash,
+                        FirstName = dto.UserFirstName,
+                        LastName = dto.UserLastName,
+                        IsActive = true,
+                        Roles = [Roles.BusinessOwner],
+                        TenantId = createdBiz.Id // User belongs to the business tenant
+                    };
 
-                // Create user within transaction
-                User createdUsr;
-                try
-                {
-                    createdUsr = await _userRepository.CreateWithSessionAsync(user, session, ct);
-                }
-                catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-                {
-                    // Handle race condition where another request created a user with the same email
-                    throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
-                }
+                    // Create user within transaction
+                    User createdUsr;
+                    try
+                    {
+                        createdUsr = await _userRepository.CreateWithSessionAsync(user, session, ct);
+                    }
+                    catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+                    {
+                        // Handle race condition where another request created a user with the same email
+                        throw new InvalidOperationException($"User with email {dto.UserEmail} already exists");
+                    }
 
-                return (createdBiz, createdUsr);
-            },
-            cancellationToken);
+                    return (createdBiz, createdUsr);
+                },
+                cancellationToken);
 
-        // Generate JWT token using AuthService (after successful transaction commit)
-        string token = _authService.GenerateJwtToken(createdUser);
+            // Generate JWT token using AuthService (after successful transaction commit)
+            string token = _authService.GenerateJwtToken(createdUser);
 
-        // Generate and save refresh token using AuthService (outside transaction)
-        string refreshToken = await _authService.GenerateAndSaveRefreshTokenAsync(createdUser.Id, cancellationToken);
+            // Generate and save refresh token using AuthService (outside transaction)
+            string refreshToken = await _authService.GenerateAndSaveRefreshTokenAsync(createdUser.Id, cancellationToken);
 
-        return new BusinessWithUserDto(
-            MapToDto(createdBusiness),
-            createdUser.Id,
-            createdUser.Email,
-            token,
-            refreshToken
-        );
+            return new BusinessWithUserDto(
+                MapToDto(createdBusiness),
+                createdUser.Id,
+                createdUser.Email,
+                token,
+                refreshToken
+            );
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Error.Conflict("User.EmailAlreadyExists", ex.Message);
+        }
     }
 
-    public async Task<BusinessDto> UpdateAsync(string id, UpdateBusinessDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<BusinessDto>> UpdateAsync(string id, UpdateBusinessDto dto, CancellationToken cancellationToken = default)
     {
         Business? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         if (entity == null)
         {
-            throw new KeyNotFoundException($"Business with ID {id} not found");
+            return Error.NotFound("Business", id);
         }
 
         // Check authorization
@@ -207,7 +214,7 @@ public class BusinessService : IBusinessService
         // BusinessOwners can only update businesses in their own tenant
         if (!isSuperUser && (!isBusinessOwner || entity.TenantId != currentTenantId))
         {
-            throw new UnauthorizedAccessException("You do not have permission to update this business");
+            return Error.Forbidden("You do not have permission to update this business");
         }
 
         entity.Name = dto.Name;
@@ -223,13 +230,13 @@ public class BusinessService : IBusinessService
         return MapToDto(updated);
     }
 
-    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         Business? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         if (entity == null)
         {
-            return false;
+            return Error.NotFound("Business", id);
         }
 
         // Check authorization
@@ -240,10 +247,11 @@ public class BusinessService : IBusinessService
         // Other users (shouldn't reach here due to endpoint authorization, but enforce anyway)
         if (!isSuperUser && entity.TenantId != currentTenantId)
         {
-            return false; // Not authorized or not found
+            return Error.Forbidden("You do not have permission to delete this business");
         }
 
-        return await _repository.DeleteAsync(id, cancellationToken);
+        bool deleted = await _repository.DeleteAsync(id, cancellationToken);
+        return deleted ? Result.Success() : Error.Failure("Business.DeleteFailed", "Failed to delete business");
     }
 
     private static BusinessDto MapToDto(Business entity)
