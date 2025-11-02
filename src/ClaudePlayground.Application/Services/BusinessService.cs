@@ -302,7 +302,7 @@ public class BusinessService : IBusinessService
         }
 
         // Generate cryptographically secure random token
-        byte[] randomBytes = new byte[64];
+        var randomBytes = new byte[64];
         using RandomNumberGenerator rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
         string token = Convert.ToBase64String(randomBytes);
