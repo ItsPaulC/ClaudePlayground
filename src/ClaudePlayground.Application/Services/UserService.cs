@@ -23,14 +23,14 @@ public class UserService : IUserService
         _currentUserService = currentUserService;
     }
 
-    public async Task<UserDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<Result<UserDto>> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         // Retrieve user from database
         User? entity = await _repository.GetByIdAsync(id, cancellationToken);
 
         if (entity == null)
         {
-            return null;
+            return Error.NotFound("User", id);
         }
 
         // Check authorization level
@@ -49,8 +49,8 @@ public class UserService : IUserService
 
         if (entity.TenantId != currentTenantId)
         {
-            // Return null (not found) to avoid leaking information about users in other tenants
-            return null;
+            // Return NotFound to avoid leaking information about users in other tenants
+            return Error.NotFound("User", id);
         }
 
         // BusinessOwners can view any user in their tenant
@@ -62,21 +62,21 @@ public class UserService : IUserService
         // User and ReadOnlyUser roles can ONLY view their own user information
         if (entity.Id != currentUserId)
         {
-            // Return null (not found) to prevent viewing other users
-            return null;
+            // Return Forbidden to prevent viewing other users
+            return Error.Forbidden("You can only view your own user information");
         }
 
         return MapToDto(entity);
     }
 
-    public async Task<UserDto?> GetMeAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<UserDto>> GetMeAsync(CancellationToken cancellationToken = default)
     {
         // Get current user ID from JWT claims
         string? currentUserId = _currentUserService.UserId;
 
         if (string.IsNullOrEmpty(currentUserId))
         {
-            return null; // No user ID in claims
+            return Error.Unauthorized("User ID not found in authentication token");
         }
 
         // Retrieve user from database
@@ -84,7 +84,7 @@ public class UserService : IUserService
 
         if (entity == null)
         {
-            return null;
+            return Error.NotFound("User", currentUserId);
         }
 
         return MapToDto(entity);
@@ -152,10 +152,17 @@ public class UserService : IUserService
         );
     }
 
-    public async Task<UserDto> CreateAsync(CreateUserDto dto, string? targetTenantId = null, CancellationToken cancellationToken = default)
+    public async Task<Result<UserDto>> CreateAsync(CreateUserDto dto, string? targetTenantId = null, CancellationToken cancellationToken = default)
     {
         // Validate authorization
-        ValidateUserCreationAuthorization(dto.RoleValues, targetTenantId);
+        try
+        {
+            ValidateUserCreationAuthorization(dto.RoleValues, targetTenantId);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Error.Unauthorized(ex.Message);
+        }
 
         // Check if user already exists - use efficient query
         User? existingUser = await _repository.FindOneAsync(
@@ -164,7 +171,7 @@ public class UserService : IUserService
 
         if (existingUser != null)
         {
-            throw new InvalidOperationException($"User with email {dto.Email} already exists");
+            return Error.Conflict("User.EmailAlreadyExists", $"User with email {dto.Email} already exists");
         }
 
         // Convert role values to Role objects
@@ -174,7 +181,7 @@ public class UserService : IUserService
             Role? role = Roles.GetByValue(roleValue);
             if (role == null)
             {
-                throw new ArgumentException($"Invalid role value: {roleValue}");
+                return Error.Validation("User.InvalidRole", $"Invalid role value: {roleValue}");
             }
             roles.Add(role);
         }
@@ -217,11 +224,11 @@ public class UserService : IUserService
         catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
         {
             // Handle race condition where another request created a user with the same email
-            throw new InvalidOperationException($"User with email {dto.Email} already exists");
+            return Error.Conflict("User.EmailAlreadyExists", $"User with email {dto.Email} already exists");
         }
     }
 
-    public async Task<UserDto> UpdateAsync(string id, UpdateUserDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<UserDto>> UpdateAsync(string id, UpdateUserDto dto, CancellationToken cancellationToken = default)
     {
         // Check authorization level first
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
@@ -229,7 +236,7 @@ public class UserService : IUserService
 
         if (!isSuperUser && !isBusinessOwner)
         {
-            throw new UnauthorizedAccessException("You do not have permission to update users");
+            return Error.Unauthorized("You do not have permission to update users");
         }
 
         // Retrieve user from database
@@ -237,7 +244,7 @@ public class UserService : IUserService
 
         if (entity == null)
         {
-            throw new KeyNotFoundException($"User with ID {id} not found");
+            return Error.NotFound("User", id);
         }
 
         // Enforce tenant isolation for non-SuperUsers
@@ -248,8 +255,8 @@ public class UserService : IUserService
 
             if (entity.TenantId != currentTenantId)
             {
-                // Return NotFound instead of Unauthorized to avoid leaking information about users in other tenants
-                throw new KeyNotFoundException($"User with ID {id} not found");
+                // Return NotFound instead of Forbidden to avoid leaking information about users in other tenants
+                return Error.NotFound("User", id);
             }
         }
 
@@ -261,7 +268,7 @@ public class UserService : IUserService
             {
                 if (roleValue != Roles.UserValue && roleValue != Roles.ReadOnlyUserValue)
                 {
-                    throw new UnauthorizedAccessException($"You do not have permission to assign the role: {roleValue}");
+                    return Error.Forbidden($"You do not have permission to assign the role: {roleValue}");
                 }
             }
         }
@@ -273,7 +280,7 @@ public class UserService : IUserService
             Role? role = Roles.GetByValue(roleValue);
             if (role == null)
             {
-                throw new ArgumentException($"Invalid role value: {roleValue}");
+                return Error.Validation("User.InvalidRole", $"Invalid role value: {roleValue}");
             }
             roles.Add(role);
         }
@@ -288,7 +295,7 @@ public class UserService : IUserService
         return MapToDto(updated);
     }
 
-    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         // Check authorization level first
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
@@ -296,7 +303,7 @@ public class UserService : IUserService
 
         if (!isSuperUser && !isBusinessOwner)
         {
-            return false; // Not authorized to delete users
+            return Error.Unauthorized("You do not have permission to delete users");
         }
 
         // Retrieve user from database
@@ -304,7 +311,7 @@ public class UserService : IUserService
 
         if (entity == null)
         {
-            return false; // User not found
+            return Error.NotFound("User", id);
         }
 
         // Enforce tenant isolation for non-SuperUsers
@@ -315,12 +322,13 @@ public class UserService : IUserService
 
             if (entity.TenantId != currentTenantId)
             {
-                // Return false (not found) instead of throwing to avoid leaking information
-                return false;
+                // Return NotFound instead of Forbidden to avoid leaking information
+                return Error.NotFound("User", id);
             }
         }
 
-        return await _repository.DeleteAsync(id, cancellationToken);
+        bool deleted = await _repository.DeleteAsync(id, cancellationToken);
+        return deleted ? Result.Success() : Error.Failure("User.DeleteFailed", "Failed to delete user");
     }
 
     internal void ValidateUserCreationAuthorization(IEnumerable<string> roleValues, string? targetTenantId)
