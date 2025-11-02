@@ -23,9 +23,15 @@ public static class BusinessEndpoints
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Get Paginated Businesses - Authenticated users (tenant-scoped for non-SuperUsers)
-        group.MapGet("/paged", async (int page, int pageSize, IBusinessService service, CancellationToken ct) =>
+        group.MapGet("/paged", async (
+            int page,
+            int pageSize,
+            string? sortBy,
+            bool sortDescending,
+            IBusinessService service,
+            CancellationToken ct) =>
         {
-            PagedResult<BusinessDto> businesses = await service.GetPagedAsync(page, pageSize, ct);
+            PagedResult<BusinessDto> businesses = await service.GetPagedAsync(page, pageSize, sortBy, sortDescending, ct);
             return Results.Ok(businesses);
         })
         .WithName("GetPagedBusinesses")

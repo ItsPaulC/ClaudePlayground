@@ -47,17 +47,25 @@ public static class UserEndpoints
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Get Paginated Users - SuperUser and BusinessOwner only
-        group.MapGet("/paged", async (int page, int pageSize, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
+        group.MapGet("/paged", async (
+            int page,
+            int pageSize,
+            string? sortBy,
+            bool sortDescending,
+            IUserService service,
+            IFusionCache cache,
+            ITenantProvider tenantProvider,
+            CancellationToken ct) =>
         {
             try
             {
-                // Include tenant, page, and pageSize in cache key for tenant isolation and pagination
+                // Include tenant, page, pageSize, sortBy, sortDescending in cache key
                 string tenantId = tenantProvider.GetTenantId() ?? "global";
-                string cacheKey = $"users:paged:{tenantId}:{page}:{pageSize}";
+                string cacheKey = $"users:paged:{tenantId}:{page}:{pageSize}:{sortBy}:{sortDescending}";
 
                 PagedResult<UserDto> users = await cache.GetOrSetAsync<PagedResult<UserDto>>(
                     cacheKey,
-                    async (ctx, ct) => await service.GetPagedAsync(page, pageSize, ct),
+                    async (ctx, ct) => await service.GetPagedAsync(page, pageSize, sortBy, sortDescending, ct),
                     new FusionCacheEntryOptions { Duration = TimeSpan.FromHours(1) }, // Shorter cache for paginated results
                     ct
                 );

@@ -116,7 +116,12 @@ public class UserService : IUserService
             .Select(MapToDto);
     }
 
-    public async Task<PagedResult<UserDto>> GetPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<UserDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? sortBy = null,
+        bool sortDescending = false,
+        CancellationToken cancellationToken = default)
     {
         // Check authorization - only SuperUser and BusinessOwner can get paginated users
         bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
@@ -131,14 +136,14 @@ public class UserService : IUserService
 
         if (isSuperUser)
         {
-            // Get paginated results for all tenants
-            pagedEntities = await _repository.GetPagedAsync(page, pageSize, cancellationToken);
+            // Get paginated results for all tenants with sorting
+            pagedEntities = await _repository.GetPagedAsync(page, pageSize, sortBy, sortDescending, null, cancellationToken);
         }
         else
         {
-            // Get paginated results for current tenant only
+            // Get paginated results for current tenant only with sorting
             string currentTenantId = _tenantProvider.GetTenantId();
-            pagedEntities = await _repository.GetPagedByTenantAsync(currentTenantId, page, pageSize, cancellationToken);
+            pagedEntities = await _repository.GetPagedByTenantAsync(currentTenantId, page, pageSize, sortBy, sortDescending, null, cancellationToken);
         }
 
         // Map entities to DTOs
