@@ -82,7 +82,7 @@ public class AuthService : IAuthService
         return Error.Validation("User.EmailVerificationRequired", "Registration successful. Please check your email to verify your account before logging in.");
     }
 
-    public async Task<bool> VerifyEmailAsync(string token, CancellationToken ct = default)
+    public async Task<Result> VerifyEmailAsync(string token, CancellationToken ct = default)
     {
         // Find user by verification token - use efficient query
         User? user = await _userRepository.FindOneAsync(
@@ -91,19 +91,19 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            return false; // Invalid token
+            return Error.NotFound("EmailVerificationToken", token);
         }
 
         // Check if token has expired
         if (user.EmailVerificationTokenExpiresAt == null || user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
         {
-            return false; // Token expired
+            return Error.Validation("EmailVerificationToken.Expired", "Email verification token has expired");
         }
 
         // Check if email is already verified
         if (user.IsEmailVerified)
         {
-            return true; // Already verified
+            return Result.Success(); // Already verified
         }
 
         // Mark email as verified and clear the token
@@ -114,10 +114,10 @@ public class AuthService : IAuthService
 
         await _userRepository.UpdateAsync(user, ct);
 
-        return true;
+        return Result.Success();
     }
 
-    public async Task<AuthResponseDto?> LoginAsync(LoginDto loginDto, CancellationToken ct = default)
+    public async Task<Result<AuthResponseDto>> LoginAsync(LoginDto loginDto, CancellationToken ct = default)
     {
         // Find user by email - use efficient query
         User? user = await _userRepository.FindOneAsync(
@@ -126,7 +126,7 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            return null; // User not found
+            return Error.Unauthorized("Invalid email or password");
         }
 
         // Verify password
@@ -134,18 +134,18 @@ public class AuthService : IAuthService
 
         if (!isPasswordValid)
         {
-            return null; // Invalid password
+            return Error.Unauthorized("Invalid email or password");
         }
 
         // Check if email is verified
         if (!user.IsEmailVerified)
         {
-            return null; // Email not verified
+            return Error.Unauthorized("Please verify your email before logging in");
         }
 
         if (!user.IsActive)
         {
-            return null; // User is not active
+            return Error.Unauthorized("Your account has been deactivated");
         }
 
         // Update last login time
@@ -168,7 +168,7 @@ public class AuthService : IAuthService
         );
     }
 
-    public async Task<UserDto?> GetUserByEmailAsync(string email, CancellationToken ct = default)
+    public async Task<Result<UserDto>> GetUserByEmailAsync(string email, CancellationToken ct = default)
     {
         // Use efficient query instead of loading all users
         User? user = await _userRepository.FindOneAsync(
@@ -177,7 +177,7 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            return null;
+            return Error.NotFound("User", email);
         }
 
         return new UserDto(
@@ -194,7 +194,7 @@ public class AuthService : IAuthService
         );
     }
 
-    public async Task<bool> ChangePasswordAsync(string email, ChangePasswordDto changePasswordDto, CancellationToken ct = default)
+    public async Task<Result> ChangePasswordAsync(string email, ChangePasswordDto changePasswordDto, CancellationToken ct = default)
     {
         // Find user by email - use efficient query
         User? user = await _userRepository.FindOneAsync(
@@ -203,7 +203,7 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            return false; // User not found
+            return Error.NotFound("User", email);
         }
 
         // Verify current password
@@ -211,7 +211,7 @@ public class AuthService : IAuthService
 
         if (!isCurrentPasswordValid)
         {
-            return false; // Current password is incorrect
+            return Error.Unauthorized("Current password is incorrect");
         }
 
         // Hash new password
@@ -221,26 +221,26 @@ public class AuthService : IAuthService
         user.PasswordHash = newPasswordHash;
         await _userRepository.UpdateAsync(user, ct);
 
-        return true;
+        return Result.Success();
     }
 
-    public async Task<bool> RequestPasswordResetAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken ct = default)
+    public async Task<Result> RequestPasswordResetAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken ct = default)
     {
         // Find user by email - use efficient query
         User? user = await _userRepository.FindOneAsync(
             u => u.Email.ToLower() == forgotPasswordDto.Email.ToLower(),
             ct);
 
-        // Always return true even if user not found (security best practice - don't reveal if email exists)
+        // Always return success even if user not found (security best practice - don't reveal if email exists)
         if (user == null)
         {
-            return true;
+            return Result.Success();
         }
 
         // Only send reset email if user has verified their email
         if (!user.IsEmailVerified)
         {
-            return true; // Return true but don't send email (user needs to verify email first)
+            return Result.Success(); // Return success but don't send email (user needs to verify email first)
         }
 
         // Generate password reset token
@@ -256,10 +256,10 @@ public class AuthService : IAuthService
         // Send password reset email
         await _emailService.SendPasswordResetAsync(user.Email, resetToken, ct);
 
-        return true;
+        return Result.Success();
     }
 
-    public async Task<bool> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken ct = default)
+    public async Task<Result> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken ct = default)
     {
         // Find user by reset token - use efficient query
         User? user = await _userRepository.FindOneAsync(
@@ -268,13 +268,13 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            return false; // Invalid token
+            return Error.NotFound("PasswordResetToken", resetPasswordDto.Token);
         }
 
         // Check if token has expired
         if (user.PasswordResetTokenExpiresAt == null || user.PasswordResetTokenExpiresAt < DateTime.UtcNow)
         {
-            return false; // Token expired
+            return Error.Validation("PasswordResetToken.Expired", "Password reset token has expired");
         }
 
         // Hash new password
@@ -288,7 +288,7 @@ public class AuthService : IAuthService
 
         await _userRepository.UpdateAsync(user, ct);
 
-        return true;
+        return Result.Success();
     }
 
     public string GenerateJwtToken(User user)
@@ -322,7 +322,7 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public async Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken, CancellationToken ct = default)
+    public async Task<Result<AuthResponseDto>> RefreshTokenAsync(string refreshToken, CancellationToken ct = default)
     {
         // Find refresh token in database - use efficient query
         RefreshToken? storedToken = await _refreshTokenRepository.FindOneAsync(
@@ -331,19 +331,19 @@ public class AuthService : IAuthService
 
         if (storedToken == null)
         {
-            return null; // Refresh token not found
+            return Error.Unauthorized("Invalid refresh token");
         }
 
         // Check if token is revoked
         if (storedToken.IsRevoked)
         {
-            return null; // Token has been revoked
+            return Error.Unauthorized("Refresh token has been revoked");
         }
 
         // Check if token is expired
         if (storedToken.ExpiresAt < DateTime.UtcNow)
         {
-            return null; // Token has expired
+            return Error.Unauthorized("Refresh token has expired");
         }
 
         // Get user
@@ -351,7 +351,7 @@ public class AuthService : IAuthService
 
         if (user == null || !user.IsActive)
         {
-            return null; // User not found or inactive
+            return Error.Unauthorized("User not found or inactive");
         }
 
         // Revoke old refresh token

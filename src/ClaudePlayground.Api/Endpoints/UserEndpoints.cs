@@ -84,14 +84,21 @@ public static class UserEndpoints
 
             string cacheKey = $"{CurrentUserCacheKeyPrefix}{userId}";
 
-            UserDto? user = await cache.GetOrSetAsync<UserDto?>(
+            var result = await cache.GetOrSetAsync<Result<UserDto>>(
                 cacheKey,
                 async (ctx, ct) => await service.GetMeAsync(ct),
                 new FusionCacheEntryOptions { Duration = TimeSpan.FromHours(24) },
                 ct
             );
 
-            return user is not null ? Results.Ok(user) : Results.NotFound();
+            return result.Match(
+                onSuccess: user => Results.Ok(user),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    ErrorType.Unauthorized => Results.Unauthorized(),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("GetMe")
         .WithOpenApi();
@@ -101,14 +108,21 @@ public static class UserEndpoints
         {
             string cacheKey = $"{UserByIdCacheKeyPrefix}{id}";
 
-            UserDto? user = await cache.GetOrSetAsync<UserDto?>(
+            var result = await cache.GetOrSetAsync<Result<UserDto>>(
                 cacheKey,
                 async (ctx, ct) => await service.GetByIdAsync(id, ct),
                 new FusionCacheEntryOptions { Duration = TimeSpan.FromHours(24) },
                 ct
             );
 
-            return user is not null ? Results.Ok(user) : Results.NotFound();
+            return result.Match(
+                onSuccess: user => Results.Ok(user),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    ErrorType.Forbidden => Results.Forbid(),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("GetUserById")
         .WithOpenApi();
@@ -122,28 +136,23 @@ public static class UserEndpoints
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            try
-            {
-                UserDto user = await service.CreateAsync(dto, null, ct);
+            var result = await service.CreateAsync(dto, null, ct);
 
-                // Invalidate cache
-                string tenantId = tenantProvider.GetTenantId() ?? "global";
-                await cache.RemoveAsync($"{AllUsersCacheKey}:{tenantId}", token: ct);
-
-                return Results.Created($"/api/users/{user.Id}", user);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return Results.Forbid();
-            }
-            catch (ArgumentException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
+            return result.Match(
+                onSuccess: user =>
+                {
+                    // Invalidate cache
+                    string tenantId = tenantProvider.GetTenantId() ?? "global";
+                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
+                    return Results.Created($"/api/users/{user.Id}", user);
+                },
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.Conflict => Results.Conflict(new { error = error.Message }),
+                    ErrorType.Unauthorized => Results.Forbid(),
+                    ErrorType.Validation => Results.BadRequest(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("CreateUser")
         .WithOpenApi()
@@ -158,27 +167,22 @@ public static class UserEndpoints
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            try
-            {
-                UserDto user = await service.CreateAsync(dto, tenantId, ct);
+            var result = await service.CreateAsync(dto, tenantId, ct);
 
-                // Invalidate cache for the target tenant
-                await cache.RemoveAsync($"{AllUsersCacheKey}:{tenantId}", token: ct);
-
-                return Results.Created($"/api/users/{user.Id}", user);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return Results.Forbid();
-            }
-            catch (ArgumentException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
+            return result.Match(
+                onSuccess: user =>
+                {
+                    // Invalidate cache for the target tenant
+                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
+                    return Results.Created($"/api/users/{user.Id}", user);
+                },
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.Conflict => Results.Conflict(new { error = error.Message }),
+                    ErrorType.Unauthorized => Results.Forbid(),
+                    ErrorType.Validation => Results.BadRequest(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("CreateUserInTenant")
         .WithOpenApi()
@@ -187,30 +191,26 @@ public static class UserEndpoints
         // Update User - Super-user (any) or BusinessOwner (own tenant only)
         group.MapPut("/{id}", async (string id, UpdateUserDto dto, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
         {
-            try
-            {
-                UserDto user = await service.UpdateAsync(id, dto, ct);
+            var result = await service.UpdateAsync(id, dto, ct);
 
-                // Invalidate cache
-                string tenantId = tenantProvider.GetTenantId() ?? "global";
-                await cache.RemoveAsync($"{AllUsersCacheKey}:{tenantId}", token: ct);
-                await cache.RemoveAsync($"{UserByIdCacheKeyPrefix}{id}", token: ct);
-                await cache.RemoveAsync($"{CurrentUserCacheKeyPrefix}{id}", token: ct);
-
-                return Results.Ok(user);
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return Results.Forbid();
-            }
-            catch (ArgumentException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
+            return result.Match(
+                onSuccess: user =>
+                {
+                    // Invalidate cache
+                    string tenantId = tenantProvider.GetTenantId() ?? "global";
+                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
+                    cache.Remove($"{UserByIdCacheKeyPrefix}{id}");
+                    cache.Remove($"{CurrentUserCacheKeyPrefix}{id}");
+                    return Results.Ok(user);
+                },
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    ErrorType.Unauthorized => Results.Forbid(),
+                    ErrorType.Forbidden => Results.Forbid(),
+                    ErrorType.Validation => Results.BadRequest(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("UpdateUser")
         .WithOpenApi()
@@ -219,18 +219,24 @@ public static class UserEndpoints
         // Delete User - Super-user (any) or BusinessOwner (own tenant only)
         group.MapDelete("/{id}", async (string id, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
         {
-            bool deleted = await service.DeleteAsync(id, ct);
+            var result = await service.DeleteAsync(id, ct);
 
-            if (deleted)
-            {
-                // Invalidate cache
-                string tenantId = tenantProvider.GetTenantId() ?? "global";
-                await cache.RemoveAsync($"{AllUsersCacheKey}:{tenantId}", token: ct);
-                await cache.RemoveAsync($"{UserByIdCacheKeyPrefix}{id}", token: ct);
-                await cache.RemoveAsync($"{CurrentUserCacheKeyPrefix}{id}", token: ct);
-            }
-
-            return deleted ? Results.NoContent() : Results.NotFound();
+            return result.Match(
+                onSuccess: () =>
+                {
+                    // Invalidate cache
+                    string tenantId = tenantProvider.GetTenantId() ?? "global";
+                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
+                    cache.Remove($"{UserByIdCacheKeyPrefix}{id}");
+                    cache.Remove($"{CurrentUserCacheKeyPrefix}{id}");
+                    return Results.NoContent();
+                },
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    ErrorType.Unauthorized => Results.Forbid(),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("DeleteUser")
         .WithOpenApi()
