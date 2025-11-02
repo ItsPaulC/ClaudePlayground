@@ -19,6 +19,10 @@ public interface IRepository<T> where T : BaseEntity
     Task<T?> FindOneAsync(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default);
     Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default);
 
+    // Pagination methods for efficient data retrieval
+    Task<PagedResult<T>> GetPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<T>> GetPagedByTenantAsync(string tenantId, int page, int pageSize, CancellationToken cancellationToken = default);
+
     // Session-aware methods for transaction support (session is object to avoid MongoDB dependency in Domain layer)
     Task<T> CreateWithSessionAsync(T entity, object session, CancellationToken cancellationToken = default);
 }

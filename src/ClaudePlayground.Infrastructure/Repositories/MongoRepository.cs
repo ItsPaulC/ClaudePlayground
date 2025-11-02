@@ -91,4 +91,63 @@ public class MongoRepository<T> : IRepository<T> where T : BaseEntity
         await _collection.InsertOneAsync(clientSession, entity, cancellationToken: cancellationToken);
         return entity;
     }
+
+    // Pagination methods for efficient data retrieval
+    public async Task<PagedResult<T>> GetPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        // Validate and normalize parameters
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100; // Max page size to prevent excessive memory usage
+
+        // Get total count
+        var totalCount = await _collection.CountDocumentsAsync(_ => true, cancellationToken: cancellationToken);
+
+        // Calculate skip
+        var skip = (page - 1) * pageSize;
+
+        // Get paginated items
+        var items = await _collection
+            .Find(_ => true)
+            .Skip(skip)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<T>(
+            Items: items,
+            TotalCount: (int)totalCount,
+            Page: page,
+            PageSize: pageSize
+        );
+    }
+
+    public async Task<PagedResult<T>> GetPagedByTenantAsync(string tenantId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        // Validate and normalize parameters
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100; // Max page size to prevent excessive memory usage
+
+        FilterDefinition<T> filter = Builders<T>.Filter.Eq(e => e.TenantId, tenantId);
+
+        // Get total count for tenant
+        var totalCount = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+
+        // Calculate skip
+        var skip = (page - 1) * pageSize;
+
+        // Get paginated items for tenant
+        var items = await _collection
+            .Find(filter)
+            .Skip(skip)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<T>(
+            Items: items,
+            TotalCount: (int)totalCount,
+            Page: page,
+            PageSize: pageSize
+        );
+    }
 }

@@ -46,6 +46,33 @@ public static class UserEndpoints
         .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
+        // Get Paginated Users - SuperUser and BusinessOwner only
+        group.MapGet("/paged", async (int page, int pageSize, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
+        {
+            try
+            {
+                // Include tenant, page, and pageSize in cache key for tenant isolation and pagination
+                string tenantId = tenantProvider.GetTenantId() ?? "global";
+                string cacheKey = $"users:paged:{tenantId}:{page}:{pageSize}";
+
+                PagedResult<UserDto> users = await cache.GetOrSetAsync<PagedResult<UserDto>>(
+                    cacheKey,
+                    async (ctx, ct) => await service.GetPagedAsync(page, pageSize, ct),
+                    new FusionCacheEntryOptions { Duration = TimeSpan.FromHours(1) }, // Shorter cache for paginated results
+                    ct
+                );
+
+                return Results.Ok(users);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Forbid();
+            }
+        })
+        .WithName("GetPagedUsers")
+        .WithOpenApi()
+        .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
+
         // Get Current User - Any authenticated user can get their own information
         group.MapGet("/me", async (IUserService service, IFusionCache cache, ICurrentUserService currentUserService, CancellationToken ct) =>
         {

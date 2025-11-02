@@ -116,6 +116,42 @@ public class UserService : IUserService
             .Select(MapToDto);
     }
 
+    public async Task<PagedResult<UserDto>> GetPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        // Check authorization - only SuperUser and BusinessOwner can get paginated users
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+        bool isBusinessOwner = _currentUserService.IsInRole(Roles.BusinessOwnerValue);
+
+        if (!isSuperUser && !isBusinessOwner)
+        {
+            throw new UnauthorizedAccessException("Only SuperUser and BusinessOwner can view all users");
+        }
+
+        PagedResult<User> pagedEntities;
+
+        if (isSuperUser)
+        {
+            // Get paginated results for all tenants
+            pagedEntities = await _repository.GetPagedAsync(page, pageSize, cancellationToken);
+        }
+        else
+        {
+            // Get paginated results for current tenant only
+            string currentTenantId = _tenantProvider.GetTenantId();
+            pagedEntities = await _repository.GetPagedByTenantAsync(currentTenantId, page, pageSize, cancellationToken);
+        }
+
+        // Map entities to DTOs
+        var dtoItems = pagedEntities.Items.Select(MapToDto);
+
+        return new PagedResult<UserDto>(
+            Items: dtoItems,
+            TotalCount: pagedEntities.TotalCount,
+            Page: pagedEntities.Page,
+            PageSize: pagedEntities.PageSize
+        );
+    }
+
     public async Task<UserDto> CreateAsync(CreateUserDto dto, string? targetTenantId = null, CancellationToken cancellationToken = default)
     {
         // Validate authorization

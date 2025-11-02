@@ -64,6 +64,36 @@ public class BusinessService : IBusinessService
             .Select(MapToDto);
     }
 
+    public async Task<PagedResult<BusinessDto>> GetPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        // Super-users can see all businesses (cross-tenant access)
+        bool isSuperUser = _currentUserService.IsInRole(Roles.SuperUserValue);
+
+        PagedResult<Business> pagedEntities;
+
+        if (isSuperUser)
+        {
+            // Get paginated results for all tenants
+            pagedEntities = await _repository.GetPagedAsync(page, pageSize, cancellationToken);
+        }
+        else
+        {
+            // Get paginated results for current tenant only
+            string currentTenantId = _tenantProvider.GetTenantId();
+            pagedEntities = await _repository.GetPagedByTenantAsync(currentTenantId, page, pageSize, cancellationToken);
+        }
+
+        // Map entities to DTOs
+        var dtoItems = pagedEntities.Items.Select(MapToDto);
+
+        return new PagedResult<BusinessDto>(
+            Items: dtoItems,
+            TotalCount: pagedEntities.TotalCount,
+            Page: pagedEntities.Page,
+            PageSize: pagedEntities.PageSize
+        );
+    }
+
     public async Task<BusinessDto> CreateAsync(CreateBusinessDto dto, CancellationToken cancellationToken = default)
     {
         Business entity = new()

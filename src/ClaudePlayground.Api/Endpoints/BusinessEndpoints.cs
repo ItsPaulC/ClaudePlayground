@@ -22,6 +22,15 @@ public static class BusinessEndpoints
         .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
+        // Get Paginated Businesses - Authenticated users (tenant-scoped for non-SuperUsers)
+        group.MapGet("/paged", async (int page, int pageSize, IBusinessService service, CancellationToken ct) =>
+        {
+            PagedResult<BusinessDto> businesses = await service.GetPagedAsync(page, pageSize, ct);
+            return Results.Ok(businesses);
+        })
+        .WithName("GetPagedBusinesses")
+        .WithOpenApi();
+
         // Get Business by ID - Authenticated users (tenant-scoped)
         group.MapGet("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
         {
