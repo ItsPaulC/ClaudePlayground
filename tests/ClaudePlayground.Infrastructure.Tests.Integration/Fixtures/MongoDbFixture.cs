@@ -1,5 +1,6 @@
 using ClaudePlayground.Infrastructure.Configuration;
 using ClaudePlayground.Infrastructure.Persistence;
+using ClaudePlayground.Infrastructure.Persistence.Mapping;
 using Testcontainers.MongoDb;
 
 namespace ClaudePlayground.Infrastructure.Tests.Integration.Fixtures;
@@ -20,6 +21,9 @@ public class MongoDbFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _mongoContainer.StartAsync();
+
+        // Configure MongoDB class mappings before creating context
+        MongoDbMappingConfiguration.Configure();
 
         MongoDbSettings settings = new()
         {

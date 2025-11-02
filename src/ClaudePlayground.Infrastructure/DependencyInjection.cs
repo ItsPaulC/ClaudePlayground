@@ -4,6 +4,7 @@ using ClaudePlayground.Application.Services;
 using ClaudePlayground.Domain.Common;
 using ClaudePlayground.Infrastructure.Configuration;
 using ClaudePlayground.Infrastructure.Persistence;
+using ClaudePlayground.Infrastructure.Persistence.Mapping;
 using ClaudePlayground.Infrastructure.Repositories;
 using ClaudePlayground.Infrastructure.Services;
 using ClaudePlayground.Infrastructure.Tenancy;
@@ -20,6 +21,9 @@ public static class DependencyInjection
     {
         // HTTP Context Accessor for multi-tenancy
         services.AddHttpContextAccessor();
+
+        // Configure MongoDB class mappings (must be done before creating MongoDbContext)
+        MongoDbMappingConfiguration.Configure();
 
         // MongoDB Configuration
         // Support both Aspire connection strings and traditional appsettings.json

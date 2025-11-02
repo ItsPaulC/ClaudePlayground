@@ -1,5 +1,5 @@
-using ClaudePlayground.Domain.Entities;
 using System.Linq.Expressions;
+using ClaudePlayground.Domain.Entities;
 
 namespace ClaudePlayground.Domain.Common;
 

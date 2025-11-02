@@ -30,7 +30,8 @@ public static class AuthEndpoints
             {
                 // Since RegisterAsync now returns null after successfully sending verification email,
                 // we should return a success message instructing the user to check their email
-                return Results.Ok(new {
+                return Results.Ok(new
+                {
                     message = "Registration successful. Please check your email to verify your account.",
                     emailSent = true
                 });

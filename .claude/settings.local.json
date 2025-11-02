@@ -10,7 +10,9 @@
       "Bash(git push:*)",
       "Bash(dotnet workload:*)",
       "Bash(dotnet new:*)",
-      "Bash(dotnet remove:*)"
+      "Bash(dotnet remove:*)",
+      "Bash(dotnet format:*)",
+      "Bash(dotnet restore:*)"
     ],
     "deny": [],
     "ask": []
