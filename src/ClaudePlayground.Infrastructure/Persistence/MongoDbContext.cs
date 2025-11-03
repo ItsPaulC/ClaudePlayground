@@ -1,6 +1,7 @@
 using ClaudePlayground.Domain.Entities;
 using ClaudePlayground.Infrastructure.Configuration;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Extensions.DiagnosticSources;
 
 namespace ClaudePlayground.Infrastructure.Persistence;
 
@@ -11,7 +12,11 @@ public class MongoDbContext
 
     public MongoDbContext(MongoDbSettings settings)
     {
-        _client = new MongoClient(settings.ConnectionString);
+        // Configure MongoDB client with OpenTelemetry instrumentation
+        MongoClientSettings clientSettings = MongoClientSettings.FromConnectionString(settings.ConnectionString);
+        clientSettings.ClusterConfigurator = cb => cb.Subscribe(new DiagnosticsActivityEventSubscriber());
+
+        _client = new MongoClient(clientSettings);
         _database = _client.GetDatabase(settings.DatabaseName);
     }
 
