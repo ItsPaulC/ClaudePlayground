@@ -1,6 +1,7 @@
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Application.Validators;
+using ClaudePlayground.Domain.Common;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
@@ -21,23 +22,20 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            AuthResponseDto? response = await authService.RegisterAsync(registerDto, ct);
+            var result = await authService.RegisterAsync(registerDto, ct);
 
-            // RegisterAsync now returns null on success (email verification required)
-            // or null if user already exists
-            // We need to determine which case it is by checking the result
-            if (response == null)
-            {
-                // Since RegisterAsync now returns null after successfully sending verification email,
-                // we should return a success message instructing the user to check their email
-                return Results.Ok(new {
+            return result.Match(
+                onSuccess: response => Results.Ok(new
+                {
                     message = "Registration successful. Please check your email to verify your account.",
                     emailSent = true
+                }),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.Conflict => Results.Conflict(new { error = error.Message }),
+                    ErrorType.Validation => Results.BadRequest(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
                 });
-            }
-
-            // This shouldn't happen with current implementation, but keeping for safety
-            return Results.BadRequest(new { message = "Registration failed" });
         })
         .WithName("Register")
         .WithOpenApi()
@@ -45,14 +43,11 @@ public static class AuthEndpoints
 
         group.MapGet("/verify-email", async (string token, IAuthService authService, CancellationToken ct) =>
         {
-            bool success = await authService.VerifyEmailAsync(token, ct);
+            var result = await authService.VerifyEmailAsync(token, ct);
 
-            if (!success)
-            {
-                return Results.BadRequest(new { message = "Email verification failed. Token may be invalid or expired." });
-            }
-
-            return Results.Ok(new { message = "Email verified successfully. You can now log in." });
+            return result.Match(
+                onSuccess: () => Results.Ok(new { message = "Email verified successfully. You can now log in." }),
+                onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("VerifyEmail")
         .WithOpenApi()
@@ -66,14 +61,16 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            AuthResponseDto? response = await authService.LoginAsync(loginDto, ct);
+            var result = await authService.LoginAsync(loginDto, ct);
 
-            if (response == null)
-            {
-                return Results.Unauthorized();
-            }
-
-            return Results.Ok(response);
+            return result.Match(
+                onSuccess: response => Results.Ok(response),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.Unauthorized => Results.Unauthorized(),
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("Login")
         .WithOpenApi()
@@ -88,14 +85,15 @@ public static class AuthEndpoints
                 return Results.Unauthorized();
             }
 
-            UserDto? user = await authService.GetUserByEmailAsync(email, ct);
+            var result = await authService.GetUserByEmailAsync(email, ct);
 
-            if (user == null)
-            {
-                return Results.NotFound();
-            }
-
-            return Results.Ok(user);
+            return result.Match(
+                onSuccess: user => Results.Ok(user),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("GetCurrentUser")
         .WithOpenApi()
@@ -116,14 +114,16 @@ public static class AuthEndpoints
                 return Results.Unauthorized();
             }
 
-            bool success = await authService.ChangePasswordAsync(email, changePasswordDto, ct);
+            var result = await authService.ChangePasswordAsync(email, changePasswordDto, ct);
 
-            if (!success)
-            {
-                return Results.BadRequest(new { message = "Failed to change password. Current password may be incorrect." });
-            }
-
-            return Results.Ok(new { message = "Password changed successfully" });
+            return result.Match(
+                onSuccess: () => Results.Ok(new { message = "Password changed successfully" }),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.Unauthorized => Results.Unauthorized(),
+                    ErrorType.Validation => Results.BadRequest(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("ChangePassword")
         .WithOpenApi()
@@ -137,7 +137,7 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            bool success = await authService.RequestPasswordResetAsync(forgotPasswordDto, ct);
+            var result = await authService.RequestPasswordResetAsync(forgotPasswordDto, ct);
 
             // Always return success message for security (don't reveal if email exists)
             return Results.Ok(new { message = "If an account with that email exists, a password reset link has been sent." });
@@ -154,14 +154,11 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            bool success = await authService.ResetPasswordAsync(resetPasswordDto, ct);
+            var result = await authService.ResetPasswordAsync(resetPasswordDto, ct);
 
-            if (!success)
-            {
-                return Results.BadRequest(new { message = "Password reset failed. Token may be invalid or expired." });
-            }
-
-            return Results.Ok(new { message = "Password reset successfully. You can now log in with your new password." });
+            return result.Match(
+                onSuccess: () => Results.Ok(new { message = "Password reset successfully. You can now log in with your new password." }),
+                onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("ResetPassword")
         .WithOpenApi()
@@ -169,14 +166,16 @@ public static class AuthEndpoints
 
         group.MapPost("/refresh", async (RefreshTokenDto refreshTokenDto, IAuthService authService, CancellationToken ct) =>
         {
-            AuthResponseDto? response = await authService.RefreshTokenAsync(refreshTokenDto.RefreshToken, ct);
+            var result = await authService.RefreshTokenAsync(refreshTokenDto.RefreshToken, ct);
 
-            if (response == null)
-            {
-                return Results.Unauthorized();
-            }
-
-            return Results.Ok(response);
+            return result.Match(
+                onSuccess: response => Results.Ok(response),
+                onFailure: error => error.Type switch
+                {
+                    ErrorType.Unauthorized => Results.Unauthorized(),
+                    ErrorType.NotFound => Results.NotFound(new { error = error.Message }),
+                    _ => Results.BadRequest(new { error = error.Message })
+                });
         })
         .WithName("RefreshToken")
         .WithOpenApi()

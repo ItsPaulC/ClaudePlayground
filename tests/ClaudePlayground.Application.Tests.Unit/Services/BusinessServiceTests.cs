@@ -21,37 +21,29 @@ public class BusinessServiceTests
     // Mocks (member variables)
     private readonly IRepository<Business> _businessRepository;
     private readonly IRepository<User> _userRepository;
-    private readonly IRepository<RefreshToken> _refreshTokenRepository;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAuthService _authService;
+    private readonly ITransactionManager _transactionManager;
 
     public BusinessServiceTests()
     {
         // Initialize mocks
         _businessRepository = Substitute.For<IRepository<Business>>();
         _userRepository = Substitute.For<IRepository<User>>();
-        _refreshTokenRepository = Substitute.For<IRepository<RefreshToken>>();
         _tenantProvider = Substitute.For<ITenantProvider>();
         _currentUserService = Substitute.For<ICurrentUserService>();
-
-        // Create test JWT settings
-        JwtSettings jwtSettings = new()
-        {
-            SecretKey = "ThisIsASecretKeyForTestingPurposesOnly1234567890",
-            Issuer = "TestIssuer",
-            Audience = "TestAudience",
-            ExpirationMinutes = 60,
-            RefreshTokenExpirationDays = 7
-        };
+        _authService = Substitute.For<IAuthService>();
+        _transactionManager = Substitute.For<ITransactionManager>();
 
         // Create System Under Test
         _sut = new BusinessService(
             _businessRepository,
             _userRepository,
-            _refreshTokenRepository,
             _tenantProvider,
             _currentUserService,
-            jwtSettings
+            _authService,
+            _transactionManager
         );
     }
 
@@ -81,13 +73,13 @@ public class BusinessServiceTests
         var result = await _sut.GetByIdAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(businessId, result.Id);
-        Assert.Equal("Test Business", result.Name);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(businessId, result.Value.Id);
+        Assert.Equal("Test Business", result.Value.Name);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WithValidIdButDifferentTenant_ShouldReturnNull()
+    public async Task GetByIdAsync_WithValidIdButDifferentTenant_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "business123";
@@ -108,11 +100,12 @@ public class BusinessServiceTests
         var result = await _sut.GetByIdAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WithNonExistingId_ShouldReturnNull()
+    public async Task GetByIdAsync_WithNonExistingId_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "nonexisting123";
@@ -124,7 +117,8 @@ public class BusinessServiceTests
         var result = await _sut.GetByIdAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -223,10 +217,10 @@ public class BusinessServiceTests
         var result = await _sut.CreateAsync(createDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("business123", result.Id);
-        Assert.Equal("New Business", result.Name);
-        Assert.Equal(tenantId, result.TenantId);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("business123", result.Value.Id);
+        Assert.Equal("New Business", result.Value.Name);
+        Assert.Equal(tenantId, result.Value.TenantId);
 
         await _businessRepository.Received(1).CreateAsync(
             Arg.Is<Business>(b => b.Name == "New Business" && b.TenantId == tenantId),
@@ -275,47 +269,60 @@ public class BusinessServiceTests
         _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        _businessRepository.CreateAsync(Arg.Any<Business>(), Arg.Any<CancellationToken>())
+        // Mock transaction manager to execute the operation immediately
+        _transactionManager.ExecuteInTransactionAsync(
+            Arg.Any<Func<object, CancellationToken, Task<(Business, User)>>>(),
+            Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var operation = callInfo.Arg<Func<object, CancellationToken, Task<(Business, User)>>>();
+                return operation(new object(), CancellationToken.None);
+            });
+
+        _businessRepository.CreateWithSessionAsync(Arg.Any<Business>(), Arg.Any<object>(), Arg.Any<CancellationToken>())
             .Returns(createdBusiness);
 
-        _userRepository.CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+        _userRepository.CreateWithSessionAsync(Arg.Any<User>(), Arg.Any<object>(), Arg.Any<CancellationToken>())
             .Returns(createdUser);
 
-        _userRepository.GetByIdAsync("user123", Arg.Any<CancellationToken>())
-            .Returns(createdUser);
+        // Mock AuthService methods
+        _authService.GenerateJwtToken(Arg.Any<User>())
+            .Returns("jwt-token");
 
-        _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
-            .Returns(new RefreshToken { Token = "refresh-token" });
+        _authService.GenerateAndSaveRefreshTokenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("refresh-token");
 
         // Act
         var result = await _sut.CreateWithUserAsync(createDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.NotNull(result.Business);
-        Assert.Equal("business123", result.Business.Id);
-        Assert.Equal("user123", result.UserId);
-        Assert.Equal("owner@business.com", result.UserEmail);
-        Assert.NotEmpty(result.Token);
-        Assert.NotEmpty(result.RefreshToken);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.Business);
+        Assert.Equal("business123", result.Value.Business.Id);
+        Assert.Equal("user123", result.Value.UserId);
+        Assert.Equal("owner@business.com", result.Value.UserEmail);
+        Assert.NotEmpty(result.Value.Token);
+        Assert.NotEmpty(result.Value.RefreshToken);
 
-        await _businessRepository.Received(1).CreateAsync(
+        await _businessRepository.Received(1).CreateWithSessionAsync(
             Arg.Is<Business>(b => b.TenantId == b.Id),
+            Arg.Any<object>(),
             Arg.Any<CancellationToken>()
         );
 
-        await _userRepository.Received(1).CreateAsync(
+        await _userRepository.Received(1).CreateWithSessionAsync(
             Arg.Is<User>(u =>
                 u.Email == "owner@business.com" &&
                 u.Roles.Any(r => r.Value == Roles.BusinessOwnerValue) &&
                 u.TenantId == createdBusiness.Id
             ),
+            Arg.Any<object>(),
             Arg.Any<CancellationToken>()
         );
     }
 
     [Fact]
-    public async Task CreateWithUserAsync_WithExistingUserEmail_ShouldThrowInvalidOperationException()
+    public async Task CreateWithUserAsync_WithExistingUserEmail_ShouldReturnConflict()
     {
         // Arrange
         var createDto = new CreateBusinessWithUserDto(
@@ -341,10 +348,12 @@ public class BusinessServiceTests
         _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
             .Returns(existingUser);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _sut.CreateWithUserAsync(createDto, CancellationToken.None)
-        );
+        // Act
+        var result = await _sut.CreateWithUserAsync(createDto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
 
         await _businessRepository.DidNotReceive().CreateAsync(
             Arg.Any<Business>(),
@@ -391,8 +400,8 @@ public class BusinessServiceTests
         var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("New Name", result.Name);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("New Name", result.Value.Name);
 
         await _businessRepository.Received(1).UpdateAsync(
             Arg.Is<Business>(b => b.Name == "New Name"),
@@ -442,12 +451,12 @@ public class BusinessServiceTests
         var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("New Name", result.Name);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("New Name", result.Value.Name);
     }
 
     [Fact]
-    public async Task UpdateAsync_AsBusinessOwnerWithDifferentTenant_ShouldThrowUnauthorizedAccessException()
+    public async Task UpdateAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnForbidden()
     {
         // Arrange
         var businessId = "business123";
@@ -480,10 +489,12 @@ public class BusinessServiceTests
         _tenantProvider.GetTenantId()
             .Returns("differentTenant");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            async () => await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None)
-        );
+        // Act
+        var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
 
         await _businessRepository.DidNotReceive().UpdateAsync(
             Arg.Any<Business>(),
@@ -492,7 +503,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_WithNonExistingBusiness_ShouldThrowKeyNotFoundException()
+    public async Task UpdateAsync_WithNonExistingBusiness_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "nonexisting123";
@@ -509,10 +520,12 @@ public class BusinessServiceTests
         _businessRepository.GetByIdAsync(businessId, Arg.Any<CancellationToken>())
             .Returns((Business?)null);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<KeyNotFoundException>(
-            async () => await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None)
-        );
+        // Act
+        var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -545,7 +558,7 @@ public class BusinessServiceTests
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
 
         await _businessRepository.Received(1).DeleteAsync(
             businessId,
@@ -554,7 +567,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithValidIdButDifferentTenant_ShouldReturnFalse()
+    public async Task DeleteAsync_WithValidIdButDifferentTenant_ShouldReturnForbidden()
     {
         // Arrange
         var businessId = "business123";
@@ -571,11 +584,15 @@ public class BusinessServiceTests
         _tenantProvider.GetTenantId()
             .Returns("differentTenant");
 
+        _currentUserService.IsInRole(Roles.SuperUserValue)
+            .Returns(false);
+
         // Act
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
 
         await _businessRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
@@ -584,7 +601,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithNonExistingId_ShouldReturnFalse()
+    public async Task DeleteAsync_WithNonExistingId_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "nonexisting123";
@@ -596,79 +613,11 @@ public class BusinessServiceTests
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
 
         await _businessRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
-            Arg.Any<CancellationToken>()
-        );
-    }
-
-    #endregion
-
-    #region GenerateJwtToken Tests (Internal Method)
-
-    [Fact]
-    public void GenerateJwtToken_WithValidUser_ShouldReturnJwtToken()
-    {
-        // Arrange
-        var user = new User
-        {
-            Id = "user123",
-            Email = "test@example.com",
-            TenantId = "tenant123",
-            Roles = new List<Role> { Roles.BusinessOwner }
-        };
-
-        // Act
-        var token = _sut.GenerateJwtToken(user);
-
-        // Assert
-        Assert.NotNull(token);
-        Assert.NotEmpty(token);
-        Assert.Contains('.', token); // JWT format has dots
-    }
-
-    #endregion
-
-    #region GenerateAndSaveRefreshTokenAsync Tests (Internal Method)
-
-    [Fact]
-    public async Task GenerateAndSaveRefreshTokenAsync_ShouldGenerateAndSaveToken()
-    {
-        // Arrange
-        var userId = "user123";
-        var user = new User
-        {
-            Id = userId,
-            Email = "test@example.com",
-            TenantId = "tenant123"
-        };
-        var refreshToken = new RefreshToken
-        {
-            Token = "generated-token",
-            UserId = userId,
-            TenantId = "tenant123"
-        };
-
-        _userRepository.GetByIdAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(user);
-
-        _refreshTokenRepository.CreateAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
-            .Returns(refreshToken);
-
-        // Act
-        var token = await _sut.GenerateAndSaveRefreshTokenAsync(userId, CancellationToken.None);
-
-        // Assert
-        Assert.NotNull(token);
-        Assert.NotEmpty(token);
-        await _refreshTokenRepository.Received(1).CreateAsync(
-            Arg.Is<RefreshToken>(rt =>
-                rt.UserId == userId &&
-                !rt.IsRevoked &&
-                rt.ExpiresAt > DateTime.UtcNow
-            ),
             Arg.Any<CancellationToken>()
         );
     }

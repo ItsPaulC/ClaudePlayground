@@ -78,4 +78,118 @@ public class MongoRepository<T> : IRepository<T> where T : BaseEntity
     {
         return await _collection.Find(filter).ToListAsync(cancellationToken);
     }
+
+    // Session-aware method for transaction support
+    public async Task<T> CreateWithSessionAsync(T entity, object session, CancellationToken cancellationToken = default)
+    {
+        if (session is not IClientSessionHandle clientSession)
+        {
+            throw new ArgumentException("Session must be an IClientSessionHandle", nameof(session));
+        }
+
+        entity.CreatedAt = DateTime.UtcNow;
+        await _collection.InsertOneAsync(clientSession, entity, cancellationToken: cancellationToken);
+        return entity;
+    }
+
+    // Pagination methods for efficient data retrieval with sorting and filtering
+    public async Task<PagedResult<T>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? sortBy = null,
+        bool sortDescending = false,
+        Expression<Func<T, bool>>? filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate and normalize parameters
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100; // Max page size to prevent excessive memory usage
+
+        // Build filter
+        FilterDefinition<T> filterDefinition = filter != null
+            ? Builders<T>.Filter.Where(filter)
+            : Builders<T>.Filter.Empty;
+
+        // Get total count
+        var totalCount = await _collection.CountDocumentsAsync(filterDefinition, cancellationToken: cancellationToken);
+
+        // Calculate skip
+        var skip = (page - 1) * pageSize;
+
+        // Build query with optional sorting
+        var query = _collection.Find(filterDefinition);
+
+        if (!string.IsNullOrEmpty(sortBy))
+        {
+            var sortDefinition = sortDescending
+                ? Builders<T>.Sort.Descending(sortBy)
+                : Builders<T>.Sort.Ascending(sortBy);
+            query = query.Sort(sortDefinition);
+        }
+
+        // Get paginated items
+        var items = await query
+            .Skip(skip)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<T>(
+            Items: items,
+            TotalCount: (int)totalCount,
+            Page: page,
+            PageSize: pageSize
+        );
+    }
+
+    public async Task<PagedResult<T>> GetPagedByTenantAsync(
+        string tenantId,
+        int page,
+        int pageSize,
+        string? sortBy = null,
+        bool sortDescending = false,
+        Expression<Func<T, bool>>? filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate and normalize parameters
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100; // Max page size to prevent excessive memory usage
+
+        // Build filter combining tenant filter with optional additional filter
+        FilterDefinition<T> tenantFilter = Builders<T>.Filter.Eq(e => e.TenantId, tenantId);
+        FilterDefinition<T> finalFilter = filter != null
+            ? Builders<T>.Filter.And(tenantFilter, Builders<T>.Filter.Where(filter))
+            : tenantFilter;
+
+        // Get total count for tenant with filters
+        var totalCount = await _collection.CountDocumentsAsync(finalFilter, cancellationToken: cancellationToken);
+
+        // Calculate skip
+        var skip = (page - 1) * pageSize;
+
+        // Build query with optional sorting
+        var query = _collection.Find(finalFilter);
+
+        if (!string.IsNullOrEmpty(sortBy))
+        {
+            var sortDefinition = sortDescending
+                ? Builders<T>.Sort.Descending(sortBy)
+                : Builders<T>.Sort.Ascending(sortBy);
+            query = query.Sort(sortDefinition);
+        }
+
+        // Get paginated items for tenant
+        var items = await query
+            .Skip(skip)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<T>(
+            Items: items,
+            TotalCount: (int)totalCount,
+            Page: page,
+            PageSize: pageSize
+        );
+    }
 }

@@ -33,19 +33,48 @@ JwtSettings jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<Jw
 // Allow JWT secret to be overridden by environment variable for production security
 string jwtSecretKey = builder.Configuration["JWT_SECRET_KEY"] ?? jwtSettings.SecretKey;
 
-// Validate JWT secret key
-if (string.IsNullOrEmpty(jwtSecretKey) || jwtSecretKey.Length < 32)
+// Validate JWT secret key with strong cryptographic requirements
+if (string.IsNullOrEmpty(jwtSecretKey))
 {
     throw new InvalidOperationException(
-        "JWT Secret Key must be at least 32 characters long. " +
+        "JWT Secret Key is required. " +
         "Set it via 'JWT_SECRET_KEY' environment variable or 'JwtSettings:SecretKey' in appsettings.");
 }
 
-if (jwtSecretKey.Contains("REPLACE") || jwtSecretKey.Contains("change-this"))
+if (jwtSecretKey.Length < 64)
 {
     throw new InvalidOperationException(
-        "JWT Secret Key has not been configured. " +
-        "Set a secure key via 'JWT_SECRET_KEY' environment variable.");
+        $"JWT Secret Key must be at least 64 characters long for production use (current length: {jwtSecretKey.Length}). " +
+        "Set a secure random key via 'JWT_SECRET_KEY' environment variable.");
+}
+
+// Check for placeholder values
+if (jwtSecretKey.Contains("REPLACE", StringComparison.OrdinalIgnoreCase) ||
+    jwtSecretKey.Contains("change-this", StringComparison.OrdinalIgnoreCase) ||
+    jwtSecretKey.Contains("example", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "JWT Secret Key contains placeholder text and has not been properly configured. " +
+        "Set a secure random key via 'JWT_SECRET_KEY' environment variable.");
+}
+
+// Check for sufficient entropy (at least 16 distinct characters for 64+ char key)
+int distinctChars = jwtSecretKey.Distinct().Count();
+if (distinctChars < 16)
+{
+    throw new InvalidOperationException(
+        $"JWT Secret Key must be cryptographically random with sufficient entropy " +
+        $"(found only {distinctChars} distinct characters, need at least 16). " +
+        "Generate a secure random key using a cryptographic random number generator.");
+}
+
+// Warn if key appears to have low complexity (too many repeated characters)
+var charGroups = jwtSecretKey.GroupBy(c => c).OrderByDescending(g => g.Count()).First();
+if (charGroups.Count() > jwtSecretKey.Length / 4)
+{
+    throw new InvalidOperationException(
+        $"JWT Secret Key has insufficient randomness (character '{charGroups.Key}' appears {charGroups.Count()} times). " +
+        "Generate a secure random key using a cryptographic random number generator.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -72,8 +101,26 @@ string redisConnectionString = builder.Configuration.GetConnectionString("redis"
     ?? "localhost:6379";
 string redisInstanceName = builder.Configuration["RedisSettings:InstanceName"] ?? "ClaudePlayground:";
 
-IConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConnectionString);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+// Connect to Redis with error handling
+IConnectionMultiplexer redis;
+try
+{
+    redis = ConnectionMultiplexer.Connect(redisConnectionString);
+
+    if (redis == null || !redis.IsConnected)
+    {
+        throw new InvalidOperationException("Redis connection was established but is not connected.");
+    }
+
+    builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+}
+catch (Exception ex)
+{
+    throw new InvalidOperationException(
+        $"Failed to connect to Redis at '{redisConnectionString}'. " +
+        "Ensure Redis is running and accessible. " +
+        $"Error: {ex.Message}", ex);
+}
 
 // Add FusionCache with Redis
 builder.Services.AddFusionCache()
@@ -97,9 +144,20 @@ builder.Services.AddFusionCache()
 WebApplication app = builder.Build();
 
 // Ensure MongoDB indexes are created
-using (IServiceScope scope = app.Services.CreateScope())
+using (IServiceScope? scope = app.Services.CreateScope())
 {
+    if (scope?.ServiceProvider == null)
+    {
+        throw new InvalidOperationException("Failed to create service scope for MongoDB initialization.");
+    }
+
     MongoDbContext dbContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+
+    if (dbContext == null)
+    {
+        throw new InvalidOperationException("Failed to resolve MongoDbContext from service provider.");
+    }
+
     await dbContext.EnsureIndexesAsync();
 }
 

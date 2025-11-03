@@ -7,13 +7,11 @@ namespace ClaudePlayground.Infrastructure.Tests.Integration.Repositories;
 
 public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
 {
-    private readonly MongoDbFixture _fixture;
     private readonly MongoRepository<Business> _repository;
 
     public MongoRepositoryTests(MongoDbFixture fixture)
     {
-        _fixture = fixture;
-        _repository = new MongoRepository<Business>(_fixture.MongoDbContext);
+        _repository = new MongoRepository<Business>(fixture.MongoDbContext);
     }
 
     [Fact]
@@ -33,7 +31,7 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
         };
 
         // Act
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Assert
         Assert.NotNull(created);
@@ -53,10 +51,10 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
             Name = "Get Test Business",
             Email = "get@test.com"
         };
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Act
-        Business? result = await _repository.GetByIdAsync(created.Id);
+        Business? result = await _repository.GetByIdAsync(created.Id, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -94,17 +92,18 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
             Name = "Business 2",
             Email = "business2@test.com"
         };
-        await _repository.CreateAsync(business1);
-        await _repository.CreateAsync(business2);
+        await _repository.CreateAsync(business1, CancellationToken.None);
+        await _repository.CreateAsync(business2, CancellationToken.None);
 
         // Act
-        IEnumerable<Business> results = await _repository.GetAllAsync();
+        IEnumerable<Business> results = await _repository.GetAllAsync(cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.NotNull(results);
-        Assert.True(results.Count() >= 2);
-        Assert.Contains(results, b => b.Name == "Business 1");
-        Assert.Contains(results, b => b.Name == "Business 2");
+        IEnumerable<Business> businesses = results as Business[] ?? results.ToArray();
+        Assert.True(businesses.Count() >= 2);
+        Assert.Contains(businesses, b => b.Name == "Business 1");
+        Assert.Contains(businesses, b => b.Name == "Business 2");
     }
 
     [Fact]
@@ -117,12 +116,12 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
             Name = "Original Name",
             Email = "original@test.com"
         };
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Act
         created.Name = "Updated Name";
         created.Email = "updated@test.com";
-        Business updated = await _repository.UpdateAsync(created);
+        Business updated = await _repository.UpdateAsync(created, CancellationToken.None);
 
         // Assert
         Assert.NotNull(updated);
@@ -142,11 +141,11 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
             Name = "Address Test Business",
             Address = new Address("123 Old St", "OldCity", "OldState", "12345", "USA")
         };
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Act
         created.Address = new Address("456 New Ave", "NewCity", "NewState", "67890", "USA");
-        Business updated = await _repository.UpdateAsync(created);
+        Business updated = await _repository.UpdateAsync(created, CancellationToken.None);
 
         // Assert
         Assert.NotNull(updated);
@@ -166,16 +165,16 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
             Name = "Delete Test Business",
             Email = "delete@test.com"
         };
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Act
-        bool deleted = await _repository.DeleteAsync(created.Id);
+        bool deleted = await _repository.DeleteAsync(created.Id, CancellationToken.None);
 
         // Assert
         Assert.True(deleted);
 
         // Verify deletion
-        Business? result = await _repository.GetByIdAsync(created.Id);
+        Business? result = await _repository.GetByIdAsync(created.Id, CancellationToken.None);
         Assert.Null(result);
     }
 
@@ -186,7 +185,7 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
         string nonExistentId = Guid.NewGuid().ToString();
 
         // Act
-        bool deleted = await _repository.DeleteAsync(nonExistentId);
+        bool deleted = await _repository.DeleteAsync(nonExistentId, CancellationToken.None);
 
         // Assert
         Assert.False(deleted);
@@ -203,7 +202,7 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
         };
 
         // Act
-        Business created = await _repository.CreateAsync(business);
+        Business created = await _repository.CreateAsync(business, CancellationToken.None);
 
         // Assert
         Assert.Equal(DateTimeKind.Utc, created.CreatedAt.Kind);
@@ -223,7 +222,7 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
 
         // Act
         created.Name = "Modified Name";
-        Business updated = await _repository.UpdateAsync(created);
+        Business updated = await _repository.UpdateAsync(created, CancellationToken.None);
 
         // Assert
         Assert.NotNull(updated.UpdatedAt);
