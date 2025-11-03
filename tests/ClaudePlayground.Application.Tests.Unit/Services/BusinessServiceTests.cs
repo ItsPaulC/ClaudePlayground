@@ -567,7 +567,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithValidIdButDifferentTenant_ShouldReturnNotFound()
+    public async Task DeleteAsync_WithValidIdButDifferentTenant_ShouldReturnForbidden()
     {
         // Arrange
         var businessId = "business123";
@@ -584,12 +584,15 @@ public class BusinessServiceTests
         _tenantProvider.GetTenantId()
             .Returns("differentTenant");
 
+        _currentUserService.IsInRole(Roles.SuperUserValue)
+            .Returns(false);
+
         // Act
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
 
         await _businessRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
