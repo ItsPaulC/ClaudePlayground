@@ -13,7 +13,10 @@
       "Bash(dotnet remove:*)",
       "Bash(dotnet format:*)",
       "Bash(dotnet restore:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.nuget.org)"
     ],
     "deny": [],
     "ask": []

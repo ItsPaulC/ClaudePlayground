@@ -17,6 +17,24 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 // Add Aspire service defaults (observability, service discovery, resilience)
 builder.AddServiceDefaults();
 
+// Add health checks for MongoDB and Redis
+string mongoConnectionString = builder.Configuration.GetConnectionString("mongodb")
+    ?? builder.Configuration["MongoDbSettings:ConnectionString"]
+    ?? "mongodb://localhost:27017";
+
+builder.Services.AddHealthChecks()
+    .AddMongoDb(
+        clientFactory: _ => new MongoDB.Driver.MongoClient(mongoConnectionString),
+        databaseNameFactory: _ => "ClaudePlayground",
+        name: "mongodb",
+        tags: ["ready", "db"])
+    .AddRedis(
+        builder.Configuration.GetConnectionString("redis")
+            ?? builder.Configuration["RedisSettings:ConnectionString"]
+            ?? "localhost:6379",
+        name: "redis",
+        tags: ["ready", "cache"]);
+
 // Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
