@@ -61,12 +61,12 @@ public class UserServiceTests
             .Returns(true);
 
         // Act
-        UserDto? result = await _sut.GetByIdAsync(userId, CancellationToken.None);
+        Result<UserDto> result = await _sut.GetByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(userId, result.Id);
-        Assert.Equal("test@example.com", result.Email);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(userId, result.Value.Id);
+        Assert.Equal("test@example.com", result.Value.Email);
     }
 
     [Fact]
@@ -96,15 +96,15 @@ public class UserServiceTests
             .Returns(tenantId);
 
         // Act
-        UserDto? result = await _sut.GetByIdAsync(userId, CancellationToken.None);
+        Result<UserDto> result = await _sut.GetByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(userId, result.Id);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(userId, result.Value.Id);
     }
 
     [Fact]
-    public async Task GetByIdAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnNull()
+    public async Task GetByIdAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "user123";
@@ -128,10 +128,11 @@ public class UserServiceTests
             .Returns("tenant2");
 
         // Act
-        UserDto? result = await _sut.GetByIdAsync(userId, CancellationToken.None);
+        Result<UserDto> result = await _sut.GetByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     [Fact]
@@ -163,15 +164,15 @@ public class UserServiceTests
             .Returns(userId);
 
         // Act
-        UserDto? result = await _sut.GetByIdAsync(userId, CancellationToken.None);
+        Result<UserDto> result = await _sut.GetByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(userId, result.Id);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(userId, result.Value.Id);
     }
 
     [Fact]
-    public async Task GetByIdAsync_AsUserViewingOtherUser_ShouldReturnNull()
+    public async Task GetByIdAsync_AsUserViewingOtherUser_ShouldReturnForbidden()
     {
         // Arrange
         string userId = "user123";
@@ -200,14 +201,15 @@ public class UserServiceTests
             .Returns(currentUserId);
 
         // Act
-        UserDto? result = await _sut.GetByIdAsync(userId, CancellationToken.None);
+        Result<UserDto> result = await _sut.GetByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WithNonExistingUser_ShouldReturnNull()
+    public async Task GetByIdAsync_WithNonExistingUser_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "nonexisting123";
@@ -216,10 +218,11 @@ public class UserServiceTests
             .Returns((User?)null);
 
         // Act
-        UserDto? result = await _sut.GetByIdAsync(userId, CancellationToken.None);
+        Result<UserDto> result = await _sut.GetByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -247,26 +250,27 @@ public class UserServiceTests
             .Returns(user);
 
         // Act
-        UserDto? result = await _sut.GetMeAsync(CancellationToken.None);
+        Result<UserDto> result = await _sut.GetMeAsync(CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(userId, result.Id);
-        Assert.Equal("me@example.com", result.Email);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(userId, result.Value.Id);
+        Assert.Equal("me@example.com", result.Value.Email);
     }
 
     [Fact]
-    public async Task GetMeAsync_WithNoCurrentUserId_ShouldReturnNull()
+    public async Task GetMeAsync_WithNoCurrentUserId_ShouldReturnUnauthorized()
     {
         // Arrange
         _currentUserService.UserId
             .Returns((string?)null);
 
         // Act
-        UserDto? result = await _sut.GetMeAsync(CancellationToken.None);
+        Result<UserDto> result = await _sut.GetMeAsync(CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
 
         await _userRepository.DidNotReceive().GetByIdAsync(
             Arg.Any<string>(),
@@ -275,7 +279,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task GetMeAsync_WithNonExistingCurrentUser_ShouldReturnNull()
+    public async Task GetMeAsync_WithNonExistingCurrentUser_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "user123";
@@ -287,10 +291,11 @@ public class UserServiceTests
             .Returns((User?)null);
 
         // Act
-        UserDto? result = await _sut.GetMeAsync(CancellationToken.None);
+        Result<UserDto> result = await _sut.GetMeAsync(CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -402,8 +407,8 @@ public class UserServiceTests
         _currentUserService.IsInRole(Roles.SuperUserValue)
             .Returns(true);
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         _userRepository.CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
             .Returns(createdUser);
@@ -412,12 +417,12 @@ public class UserServiceTests
             .Returns("tenant123");
 
         // Act
-        UserDto result = await _sut.CreateAsync(dto, null, CancellationToken.None);
+        Result<UserDto> result = await _sut.CreateAsync(dto, null, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("user123", result.Id);
-        Assert.Equal("newuser@example.com", result.Email);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("user123", result.Value.Id);
+        Assert.Equal("newuser@example.com", result.Value.Email);
 
         await _userRepository.Received(1).CreateAsync(
             Arg.Is<User>(u => u.Email == "newuser@example.com"),
@@ -453,21 +458,21 @@ public class UserServiceTests
         _tenantProvider.GetTenantId()
             .Returns("tenant123");
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         _userRepository.CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
             .Returns(createdUser);
 
         // Act
-        UserDto result = await _sut.CreateAsync(dto, null, CancellationToken.None);
+        Result<UserDto> result = await _sut.CreateAsync(dto, null, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
-    public async Task CreateAsync_AsBusinessOwnerWithInvalidRole_ShouldThrowUnauthorizedAccessException()
+    public async Task CreateAsync_AsBusinessOwnerWithInvalidRole_ShouldReturnUnauthorized()
     {
         // Arrange
         CreateUserDto dto = new(
@@ -484,10 +489,12 @@ public class UserServiceTests
         _currentUserService.IsInRole(Roles.BusinessOwnerValue)
             .Returns(true);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            async () => await _sut.CreateAsync(dto, null, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.CreateAsync(dto, null, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
 
         await _userRepository.DidNotReceive().CreateAsync(
             Arg.Any<User>(),
@@ -496,7 +503,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WithExistingEmail_ShouldThrowInvalidOperationException()
+    public async Task CreateAsync_WithExistingEmail_ShouldReturnConflict()
     {
         // Arrange
         CreateUserDto dto = new(
@@ -520,10 +527,12 @@ public class UserServiceTests
         _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
             .Returns(existingUser);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _sut.CreateAsync(dto, null, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.CreateAsync(dto, null, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
 
         await _userRepository.DidNotReceive().CreateAsync(
             Arg.Any<User>(),
@@ -532,7 +541,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WithInvalidRoleValue_ShouldThrowArgumentException()
+    public async Task CreateAsync_WithInvalidRoleValue_ShouldReturnValidationError()
     {
         // Arrange
         CreateUserDto dto = new(
@@ -546,13 +555,15 @@ public class UserServiceTests
         _currentUserService.IsInRole(Roles.SuperUserValue)
             .Returns(true);
 
-        _userRepository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<User>());
+        _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            async () => await _sut.CreateAsync(dto, null, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.CreateAsync(dto, null, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
     }
 
     #endregion
@@ -590,12 +601,12 @@ public class UserServiceTests
             .Returns(callInfo => callInfo.Arg<User>());
 
         // Act
-        UserDto result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
+        Result<UserDto> result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("New", result.FirstName);
-        Assert.Equal("Name", result.LastName);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("New", result.Value.FirstName);
+        Assert.Equal("Name", result.Value.LastName);
 
         await _userRepository.Received(1).UpdateAsync(
             Arg.Is<User>(u => u.FirstName == "New" && u.LastName == "Name"),
@@ -639,15 +650,15 @@ public class UserServiceTests
             .Returns(callInfo => callInfo.Arg<User>());
 
         // Act
-        UserDto result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
+        Result<UserDto> result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("Updated", result.FirstName);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Updated", result.Value.FirstName);
     }
 
     [Fact]
-    public async Task UpdateAsync_AsBusinessOwnerWithDifferentTenant_ShouldThrowKeyNotFoundException()
+    public async Task UpdateAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "user123";
@@ -677,10 +688,12 @@ public class UserServiceTests
         _tenantProvider.GetTenantId()
             .Returns("tenant2");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<KeyNotFoundException>(
-            async () => await _sut.UpdateAsync(userId, dto, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
 
         await _userRepository.DidNotReceive().UpdateAsync(
             Arg.Any<User>(),
@@ -689,7 +702,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_AsBusinessOwnerWithInvalidRole_ShouldThrowUnauthorizedAccessException()
+    public async Task UpdateAsync_AsBusinessOwnerWithInvalidRole_ShouldReturnForbidden()
     {
         // Arrange
         string userId = "user123";
@@ -720,14 +733,16 @@ public class UserServiceTests
         _tenantProvider.GetTenantId()
             .Returns(tenantId);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            async () => await _sut.UpdateAsync(userId, dto, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
     }
 
     [Fact]
-    public async Task UpdateAsync_AsRegularUser_ShouldThrowUnauthorizedAccessException()
+    public async Task UpdateAsync_AsRegularUser_ShouldReturnUnauthorized()
     {
         // Arrange
         string userId = "user123";
@@ -744,10 +759,12 @@ public class UserServiceTests
         _currentUserService.IsInRole(Roles.BusinessOwnerValue)
             .Returns(false);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            async () => await _sut.UpdateAsync(userId, dto, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
 
         await _userRepository.DidNotReceive().GetByIdAsync(
             Arg.Any<string>(),
@@ -756,7 +773,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_WithNonExistingUser_ShouldThrowKeyNotFoundException()
+    public async Task UpdateAsync_WithNonExistingUser_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "nonexisting123";
@@ -773,10 +790,12 @@ public class UserServiceTests
         _currentUserService.IsInRole(Roles.SuperUserValue)
             .Returns(true);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<KeyNotFoundException>(
-            async () => await _sut.UpdateAsync(userId, dto, CancellationToken.None)
-        );
+        // Act
+        Result<UserDto> result = await _sut.UpdateAsync(userId, dto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -805,10 +824,10 @@ public class UserServiceTests
             .Returns(true);
 
         // Act
-        bool result = await _sut.DeleteAsync(userId, CancellationToken.None);
+        Result result = await _sut.DeleteAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
 
         await _userRepository.Received(1).DeleteAsync(
             userId,
@@ -845,14 +864,14 @@ public class UserServiceTests
             .Returns(true);
 
         // Act
-        bool result = await _sut.DeleteAsync(userId, CancellationToken.None);
+        Result result = await _sut.DeleteAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
-    public async Task DeleteAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnFalse()
+    public async Task DeleteAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "user123";
@@ -876,10 +895,11 @@ public class UserServiceTests
             .Returns("tenant2");
 
         // Act
-        bool result = await _sut.DeleteAsync(userId, CancellationToken.None);
+        Result result = await _sut.DeleteAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
 
         await _userRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
@@ -888,7 +908,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_AsRegularUser_ShouldReturnFalse()
+    public async Task DeleteAsync_AsRegularUser_ShouldReturnUnauthorized()
     {
         // Arrange
         string userId = "user123";
@@ -900,10 +920,11 @@ public class UserServiceTests
             .Returns(false);
 
         // Act
-        bool result = await _sut.DeleteAsync(userId, CancellationToken.None);
+        Result result = await _sut.DeleteAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
 
         await _userRepository.DidNotReceive().GetByIdAsync(
             Arg.Any<string>(),
@@ -912,7 +933,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithNonExistingUser_ShouldReturnFalse()
+    public async Task DeleteAsync_WithNonExistingUser_ShouldReturnNotFound()
     {
         // Arrange
         string userId = "nonexisting123";
@@ -924,10 +945,11 @@ public class UserServiceTests
             .Returns(true);
 
         // Act
-        bool result = await _sut.DeleteAsync(userId, CancellationToken.None);
+        Result result = await _sut.DeleteAsync(userId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
 
         await _userRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),

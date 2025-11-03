@@ -80,7 +80,8 @@ public class AuthServiceTests
         var result = await _sut.RegisterAsync(registerDto, CancellationToken.None);
 
         // Assert
-        Assert.Null(result); // Should return null after sending verification email
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
         await _emailService.Received(1).SendEmailVerificationAsync(
             Arg.Is<string>(e => e == "test@example.com"),
             Arg.Any<string>(),
@@ -93,7 +94,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RegisterAsync_WithExistingUser_ShouldReturnNull()
+    public async Task RegisterAsync_WithExistingUser_ShouldReturnConflict()
     {
         // Arrange
         var registerDto = new RegisterDto(
@@ -118,7 +119,8 @@ public class AuthServiceTests
         var result = await _sut.RegisterAsync(registerDto, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
         await _userRepository.DidNotReceive().CreateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         await _emailService.DidNotReceive().SendEmailVerificationAsync(
             Arg.Any<string>(),
@@ -153,7 +155,7 @@ public class AuthServiceTests
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
         await _userRepository.Received(1).UpdateAsync(
             Arg.Is<User>(u => u.IsEmailVerified && u.EmailVerificationToken == null),
             Arg.Any<CancellationToken>()
@@ -161,7 +163,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task VerifyEmailAsync_WithInvalidToken_ShouldReturnFalse()
+    public async Task VerifyEmailAsync_WithInvalidToken_ShouldReturnNotFound()
     {
         // Arrange
         var token = "invalid-token";
@@ -173,12 +175,13 @@ public class AuthServiceTests
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
         await _userRepository.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task VerifyEmailAsync_WithExpiredToken_ShouldReturnFalse()
+    public async Task VerifyEmailAsync_WithExpiredToken_ShouldReturnValidationError()
     {
         // Arrange
         var token = "expired-token";
@@ -199,12 +202,13 @@ public class AuthServiceTests
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
         await _userRepository.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task VerifyEmailAsync_WithAlreadyVerifiedEmail_ShouldReturnTrue()
+    public async Task VerifyEmailAsync_WithAlreadyVerifiedEmail_ShouldReturnSuccess()
     {
         // Arrange
         var token = "valid-token";
@@ -225,7 +229,7 @@ public class AuthServiceTests
         var result = await _sut.VerifyEmailAsync(token, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
         await _userRepository.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -271,17 +275,17 @@ public class AuthServiceTests
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("test@example.com", result.Email);
-        Assert.Equal("Test", result.FirstName);
-        Assert.Equal("User", result.LastName);
-        Assert.Equal("tenant123", result.TenantId);
-        Assert.NotEmpty(result.Token);
-        Assert.NotEmpty(result.RefreshToken);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("test@example.com", result.Value.Email);
+        Assert.Equal("Test", result.Value.FirstName);
+        Assert.Equal("User", result.Value.LastName);
+        Assert.Equal("tenant123", result.Value.TenantId);
+        Assert.NotEmpty(result.Value.Token);
+        Assert.NotEmpty(result.Value.RefreshToken);
     }
 
     [Fact]
-    public async Task LoginAsync_WithInvalidEmail_ShouldReturnNull()
+    public async Task LoginAsync_WithInvalidEmail_ShouldReturnUnauthorized()
     {
         // Arrange
         var loginDto = new LoginDto("nonexistent@example.com", "password123");
@@ -293,11 +297,12 @@ public class AuthServiceTests
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     [Fact]
-    public async Task LoginAsync_WithInvalidPassword_ShouldReturnNull()
+    public async Task LoginAsync_WithInvalidPassword_ShouldReturnUnauthorized()
     {
         // Arrange
         var loginDto = new LoginDto("test@example.com", "wrongpassword");
@@ -318,11 +323,12 @@ public class AuthServiceTests
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     [Fact]
-    public async Task LoginAsync_WithUnverifiedEmail_ShouldReturnNull()
+    public async Task LoginAsync_WithUnverifiedEmail_ShouldReturnUnauthorized()
     {
         // Arrange
         var loginDto = new LoginDto("test@example.com", "password123");
@@ -343,11 +349,12 @@ public class AuthServiceTests
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     [Fact]
-    public async Task LoginAsync_WithInactiveUser_ShouldReturnNull()
+    public async Task LoginAsync_WithInactiveUser_ShouldReturnUnauthorized()
     {
         // Arrange
         var loginDto = new LoginDto("test@example.com", "password123");
@@ -368,7 +375,8 @@ public class AuthServiceTests
         var result = await _sut.LoginAsync(loginDto, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     #endregion
@@ -400,15 +408,15 @@ public class AuthServiceTests
         var result = await _sut.GetUserByEmailAsync(email, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("user123", result.Id);
-        Assert.Equal(email, result.Email);
-        Assert.Equal("Test", result.FirstName);
-        Assert.Equal("User", result.LastName);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("user123", result.Value.Id);
+        Assert.Equal(email, result.Value.Email);
+        Assert.Equal("Test", result.Value.FirstName);
+        Assert.Equal("User", result.Value.LastName);
     }
 
     [Fact]
-    public async Task GetUserByEmailAsync_WithNonExistingEmail_ShouldReturnNull()
+    public async Task GetUserByEmailAsync_WithNonExistingEmail_ShouldReturnNotFound()
     {
         // Arrange
         var email = "nonexistent@example.com";
@@ -420,7 +428,8 @@ public class AuthServiceTests
         var result = await _sut.GetUserByEmailAsync(email, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -448,7 +457,7 @@ public class AuthServiceTests
         var result = await _sut.ChangePasswordAsync(email, changePasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
 
         // Verify UpdateAsync was called
         await _userRepository.Received(1).UpdateAsync(
@@ -458,7 +467,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_WithInvalidCurrentPassword_ShouldReturnFalse()
+    public async Task ChangePasswordAsync_WithInvalidCurrentPassword_ShouldReturnUnauthorized()
     {
         // Arrange
         var email = "test@example.com";
@@ -478,12 +487,13 @@ public class AuthServiceTests
         var result = await _sut.ChangePasswordAsync(email, changePasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
         await _userRepository.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_WithNonExistingUser_ShouldReturnFalse()
+    public async Task ChangePasswordAsync_WithNonExistingUser_ShouldReturnNotFound()
     {
         // Arrange
         var email = "nonexistent@example.com";
@@ -496,7 +506,8 @@ public class AuthServiceTests
         var result = await _sut.ChangePasswordAsync(email, changePasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -523,7 +534,7 @@ public class AuthServiceTests
         var result = await _sut.RequestPasswordResetAsync(forgotPasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
         await _userRepository.Received(1).UpdateAsync(
             Arg.Is<User>(u => u.PasswordResetToken != null && u.PasswordResetTokenExpiresAt != null),
             Arg.Any<CancellationToken>()
@@ -536,7 +547,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RequestPasswordResetAsync_WithNonExistingUser_ShouldReturnTrueWithoutSendingEmail()
+    public async Task RequestPasswordResetAsync_WithNonExistingUser_ShouldReturnSuccessWithoutSendingEmail()
     {
         // Arrange
         var forgotPasswordDto = new ForgotPasswordDto("nonexistent@example.com");
@@ -548,7 +559,7 @@ public class AuthServiceTests
         var result = await _sut.RequestPasswordResetAsync(forgotPasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.True(result); // Always returns true for security
+        Assert.True(result.IsSuccess); // Always returns success for security
         await _emailService.DidNotReceive().SendPasswordResetAsync(
             Arg.Any<string>(),
             Arg.Any<string>(),
@@ -557,7 +568,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RequestPasswordResetAsync_WithUnverifiedUser_ShouldReturnTrueWithoutSendingEmail()
+    public async Task RequestPasswordResetAsync_WithUnverifiedUser_ShouldReturnSuccessWithoutSendingEmail()
     {
         // Arrange
         var forgotPasswordDto = new ForgotPasswordDto("test@example.com");
@@ -576,7 +587,7 @@ public class AuthServiceTests
         var result = await _sut.RequestPasswordResetAsync(forgotPasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.True(result); // Always returns true for security
+        Assert.True(result.IsSuccess); // Always returns success for security
         await _emailService.DidNotReceive().SendPasswordResetAsync(
             Arg.Any<string>(),
             Arg.Any<string>(),
@@ -610,7 +621,7 @@ public class AuthServiceTests
         var result = await _sut.ResetPasswordAsync(resetPasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
 
         // Verify UpdateAsync was called
         await _userRepository.Received(1).UpdateAsync(
@@ -620,7 +631,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task ResetPasswordAsync_WithInvalidToken_ShouldReturnFalse()
+    public async Task ResetPasswordAsync_WithInvalidToken_ShouldReturnNotFound()
     {
         // Arrange
         var resetPasswordDto = new ResetPasswordDto("invalid-token", "newpassword123");
@@ -632,12 +643,13 @@ public class AuthServiceTests
         var result = await _sut.ResetPasswordAsync(resetPasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
         await _userRepository.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ResetPasswordAsync_WithExpiredToken_ShouldReturnFalse()
+    public async Task ResetPasswordAsync_WithExpiredToken_ShouldReturnValidationError()
     {
         // Arrange
         var resetPasswordDto = new ResetPasswordDto("expired-token", "newpassword123");
@@ -657,7 +669,8 @@ public class AuthServiceTests
         var result = await _sut.ResetPasswordAsync(resetPasswordDto, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
         await _userRepository.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -710,10 +723,10 @@ public class AuthServiceTests
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("test@example.com", result.Email);
-        Assert.NotEmpty(result.Token);
-        Assert.NotEmpty(result.RefreshToken);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("test@example.com", result.Value.Email);
+        Assert.NotEmpty(result.Value.Token);
+        Assert.NotEmpty(result.Value.RefreshToken);
         await _refreshTokenRepository.Received(1).UpdateAsync(
             Arg.Is<RefreshToken>(rt => rt.IsRevoked && rt.RevokedAt != null),
             Arg.Any<CancellationToken>()
@@ -721,7 +734,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RefreshTokenAsync_WithInvalidToken_ShouldReturnNull()
+    public async Task RefreshTokenAsync_WithInvalidToken_ShouldReturnUnauthorized()
     {
         // Arrange
         var refreshTokenValue = "invalid-token";
@@ -733,11 +746,12 @@ public class AuthServiceTests
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     [Fact]
-    public async Task RefreshTokenAsync_WithRevokedToken_ShouldReturnNull()
+    public async Task RefreshTokenAsync_WithRevokedToken_ShouldReturnUnauthorized()
     {
         // Arrange
         var refreshTokenValue = "revoked-token";
@@ -758,11 +772,12 @@ public class AuthServiceTests
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     [Fact]
-    public async Task RefreshTokenAsync_WithExpiredToken_ShouldReturnNull()
+    public async Task RefreshTokenAsync_WithExpiredToken_ShouldReturnUnauthorized()
     {
         // Arrange
         var refreshTokenValue = "expired-token";
@@ -782,11 +797,12 @@ public class AuthServiceTests
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     [Fact]
-    public async Task RefreshTokenAsync_WithInactiveUser_ShouldReturnNull()
+    public async Task RefreshTokenAsync_WithInactiveUser_ShouldReturnUnauthorized()
     {
         // Arrange
         var refreshTokenValue = "valid-token";
@@ -817,7 +833,8 @@ public class AuthServiceTests
         var result = await _sut.RefreshTokenAsync(refreshTokenValue, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
     }
 
     #endregion

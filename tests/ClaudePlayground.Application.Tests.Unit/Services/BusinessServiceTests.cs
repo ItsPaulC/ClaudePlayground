@@ -73,13 +73,13 @@ public class BusinessServiceTests
         var result = await _sut.GetByIdAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(businessId, result.Id);
-        Assert.Equal("Test Business", result.Name);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(businessId, result.Value.Id);
+        Assert.Equal("Test Business", result.Value.Name);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WithValidIdButDifferentTenant_ShouldReturnNull()
+    public async Task GetByIdAsync_WithValidIdButDifferentTenant_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "business123";
@@ -100,11 +100,12 @@ public class BusinessServiceTests
         var result = await _sut.GetByIdAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WithNonExistingId_ShouldReturnNull()
+    public async Task GetByIdAsync_WithNonExistingId_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "nonexisting123";
@@ -116,7 +117,8 @@ public class BusinessServiceTests
         var result = await _sut.GetByIdAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.Null(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -215,10 +217,10 @@ public class BusinessServiceTests
         var result = await _sut.CreateAsync(createDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("business123", result.Id);
-        Assert.Equal("New Business", result.Name);
-        Assert.Equal(tenantId, result.TenantId);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("business123", result.Value.Id);
+        Assert.Equal("New Business", result.Value.Name);
+        Assert.Equal(tenantId, result.Value.TenantId);
 
         await _businessRepository.Received(1).CreateAsync(
             Arg.Is<Business>(b => b.Name == "New Business" && b.TenantId == tenantId),
@@ -294,13 +296,13 @@ public class BusinessServiceTests
         var result = await _sut.CreateWithUserAsync(createDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.NotNull(result.Business);
-        Assert.Equal("business123", result.Business.Id);
-        Assert.Equal("user123", result.UserId);
-        Assert.Equal("owner@business.com", result.UserEmail);
-        Assert.NotEmpty(result.Token);
-        Assert.NotEmpty(result.RefreshToken);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.Business);
+        Assert.Equal("business123", result.Value.Business.Id);
+        Assert.Equal("user123", result.Value.UserId);
+        Assert.Equal("owner@business.com", result.Value.UserEmail);
+        Assert.NotEmpty(result.Value.Token);
+        Assert.NotEmpty(result.Value.RefreshToken);
 
         await _businessRepository.Received(1).CreateWithSessionAsync(
             Arg.Is<Business>(b => b.TenantId == b.Id),
@@ -320,7 +322,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task CreateWithUserAsync_WithExistingUserEmail_ShouldThrowInvalidOperationException()
+    public async Task CreateWithUserAsync_WithExistingUserEmail_ShouldReturnConflict()
     {
         // Arrange
         var createDto = new CreateBusinessWithUserDto(
@@ -346,10 +348,12 @@ public class BusinessServiceTests
         _userRepository.FindOneAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>())
             .Returns(existingUser);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _sut.CreateWithUserAsync(createDto, CancellationToken.None)
-        );
+        // Act
+        var result = await _sut.CreateWithUserAsync(createDto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
 
         await _businessRepository.DidNotReceive().CreateAsync(
             Arg.Any<Business>(),
@@ -396,8 +400,8 @@ public class BusinessServiceTests
         var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("New Name", result.Name);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("New Name", result.Value.Name);
 
         await _businessRepository.Received(1).UpdateAsync(
             Arg.Is<Business>(b => b.Name == "New Name"),
@@ -447,12 +451,12 @@ public class BusinessServiceTests
         var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("New Name", result.Name);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("New Name", result.Value.Name);
     }
 
     [Fact]
-    public async Task UpdateAsync_AsBusinessOwnerWithDifferentTenant_ShouldThrowUnauthorizedAccessException()
+    public async Task UpdateAsync_AsBusinessOwnerWithDifferentTenant_ShouldReturnForbidden()
     {
         // Arrange
         var businessId = "business123";
@@ -485,10 +489,12 @@ public class BusinessServiceTests
         _tenantProvider.GetTenantId()
             .Returns("differentTenant");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            async () => await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None)
-        );
+        // Act
+        var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
 
         await _businessRepository.DidNotReceive().UpdateAsync(
             Arg.Any<Business>(),
@@ -497,7 +503,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_WithNonExistingBusiness_ShouldThrowKeyNotFoundException()
+    public async Task UpdateAsync_WithNonExistingBusiness_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "nonexisting123";
@@ -514,10 +520,12 @@ public class BusinessServiceTests
         _businessRepository.GetByIdAsync(businessId, Arg.Any<CancellationToken>())
             .Returns((Business?)null);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<KeyNotFoundException>(
-            async () => await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None)
-        );
+        // Act
+        var result = await _sut.UpdateAsync(businessId, updateDto, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 
     #endregion
@@ -550,7 +558,7 @@ public class BusinessServiceTests
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
+        Assert.True(result.IsSuccess);
 
         await _businessRepository.Received(1).DeleteAsync(
             businessId,
@@ -559,7 +567,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithValidIdButDifferentTenant_ShouldReturnFalse()
+    public async Task DeleteAsync_WithValidIdButDifferentTenant_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "business123";
@@ -580,7 +588,8 @@ public class BusinessServiceTests
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
 
         await _businessRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
@@ -589,7 +598,7 @@ public class BusinessServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithNonExistingId_ShouldReturnFalse()
+    public async Task DeleteAsync_WithNonExistingId_ShouldReturnNotFound()
     {
         // Arrange
         var businessId = "nonexisting123";
@@ -601,7 +610,8 @@ public class BusinessServiceTests
         var result = await _sut.DeleteAsync(businessId, CancellationToken.None);
 
         // Assert
-        Assert.False(result);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
 
         await _businessRepository.DidNotReceive().DeleteAsync(
             Arg.Any<string>(),
