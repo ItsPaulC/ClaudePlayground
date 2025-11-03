@@ -70,7 +70,7 @@ public class MongoRepositoryTests : IClassFixture<MongoDbFixture>
         string nonExistentId = Guid.NewGuid().ToString();
 
         // Act
-        Business? result = await _repository.GetByIdAsync(nonExistentId);
+        Business? result = await _repository.GetByIdAsync(nonExistentId, CancellationToken.None);
 
         // Assert
         Assert.Null(result);
