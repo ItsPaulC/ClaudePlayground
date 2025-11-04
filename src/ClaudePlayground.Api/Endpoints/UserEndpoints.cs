@@ -92,7 +92,7 @@ public static class UserEndpoints
 
             string cacheKey = $"{CurrentUserCacheKeyPrefix}{userId}";
 
-            var result = await cache.GetOrSetAsync<Result<UserDto>>(
+            Result<UserDto> result = await cache.GetOrSetAsync<Result<UserDto>>(
                 cacheKey,
                 async (ctx, ct) => await service.GetMeAsync(ct),
                 new FusionCacheEntryOptions { Duration = TimeSpan.FromHours(24) },
@@ -116,7 +116,7 @@ public static class UserEndpoints
         {
             string cacheKey = $"{UserByIdCacheKeyPrefix}{id}";
 
-            var result = await cache.GetOrSetAsync<Result<UserDto>>(
+            Result<UserDto> result = await cache.GetOrSetAsync<Result<UserDto>>(
                 cacheKey,
                 async (ctx, ct) => await service.GetByIdAsync(id, ct),
                 new FusionCacheEntryOptions { Duration = TimeSpan.FromHours(24) },
@@ -138,13 +138,13 @@ public static class UserEndpoints
         // Create User - Super-user can create any role, BusinessOwner can create User/ReadOnlyUser in their tenant
         group.MapPost("/", async (CreateUserDto dto, IValidator<CreateUserDto> validator, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(dto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(dto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            var result = await service.CreateAsync(dto, null, ct);
+            Result<UserDto> result = await service.CreateAsync(dto, null, ct);
 
             return result.Match(
                 onSuccess: user =>
@@ -169,13 +169,13 @@ public static class UserEndpoints
         // Create User in Specific Tenant - Super-user only (cross-tenant user creation)
         group.MapPost("/tenant/{tenantId}", async (string tenantId, CreateUserDto dto, IValidator<CreateUserDto> validator, IUserService service, IFusionCache cache, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(dto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(dto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            var result = await service.CreateAsync(dto, tenantId, ct);
+            Result<UserDto> result = await service.CreateAsync(dto, tenantId, ct);
 
             return result.Match(
                 onSuccess: user =>
@@ -199,7 +199,7 @@ public static class UserEndpoints
         // Update User - Super-user (any) or BusinessOwner (own tenant only)
         group.MapPut("/{id}", async (string id, UpdateUserDto dto, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
         {
-            var result = await service.UpdateAsync(id, dto, ct);
+            Result<UserDto> result = await service.UpdateAsync(id, dto, ct);
 
             return result.Match(
                 onSuccess: user =>
@@ -227,7 +227,7 @@ public static class UserEndpoints
         // Delete User - Super-user (any) or BusinessOwner (own tenant only)
         group.MapDelete("/{id}", async (string id, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
         {
-            var result = await service.DeleteAsync(id, ct);
+            Result result = await service.DeleteAsync(id, ct);
 
             return result.Match(
                 onSuccess: () =>
