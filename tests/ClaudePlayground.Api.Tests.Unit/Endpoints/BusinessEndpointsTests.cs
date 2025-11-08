@@ -9,12 +9,7 @@ namespace ClaudePlayground.Api.Tests.Unit.Endpoints;
 
 public class BusinessEndpointsTests
 {
-    private readonly IBusinessService _businessService;
-
-    public BusinessEndpointsTests()
-    {
-        _businessService = Substitute.For<IBusinessService>();
-    }
+    private readonly IBusinessService _businessService = Substitute.For<IBusinessService>();
 
     [Fact]
     public async Task GetAllBusinesses_ReturnsOkWithBusinesses()
@@ -112,7 +107,7 @@ public class BusinessEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _businessService.Received(1).GetByIdAsync(businessId, Arg.Any<CancellationToken>());
     }
@@ -190,7 +185,7 @@ public class BusinessEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _businessService.Received(1).DeleteAsync(businessId, Arg.Any<CancellationToken>());
     }

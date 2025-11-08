@@ -49,7 +49,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Ok"));
+        Assert.StartsWith("Ok", result.GetType().Name);
 
         await _authService.Received(1).RegisterAsync(registerDto, Arg.Any<CancellationToken>());
     }
@@ -75,7 +75,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Conflict"));
+        Assert.StartsWith("Conflict", result.GetType().Name);
 
         await _authService.Received(1).RegisterAsync(registerDto, Arg.Any<CancellationToken>());
     }
@@ -101,7 +101,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("BadRequest"));
+        Assert.StartsWith("BadRequest", result.GetType().Name);
 
         await _authService.Received(1).RegisterAsync(registerDto, Arg.Any<CancellationToken>());
     }
@@ -124,7 +124,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Ok"));
+        Assert.StartsWith("Ok", result.GetType().Name);
 
         await _authService.Received(1).VerifyEmailAsync(token, Arg.Any<CancellationToken>());
     }
@@ -144,7 +144,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("BadRequest"));
+        Assert.StartsWith("BadRequest", result.GetType().Name);
 
         await _authService.Received(1).VerifyEmailAsync(token, Arg.Any<CancellationToken>());
     }
@@ -225,7 +225,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _authService.Received(1).LoginAsync(loginDto, Arg.Any<CancellationToken>());
     }
@@ -311,7 +311,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _authService.Received(1).GetUserByEmailAsync(email, Arg.Any<CancellationToken>());
     }
@@ -338,7 +338,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Ok"));
+        Assert.StartsWith("Ok", result.GetType().Name);
 
         await _authService.Received(1).ChangePasswordAsync(email, changePasswordDto, Arg.Any<CancellationToken>());
     }
@@ -404,7 +404,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("BadRequest"));
+        Assert.StartsWith("BadRequest", result.GetType().Name);
 
         await _authService.Received(1).ChangePasswordAsync(email, changePasswordDto, Arg.Any<CancellationToken>());
     }
@@ -427,7 +427,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Ok"));
+        Assert.StartsWith("Ok", result.GetType().Name);
 
         await _authService.Received(1).RequestPasswordResetAsync(forgotPasswordDto, Arg.Any<CancellationToken>());
     }
@@ -447,7 +447,7 @@ public class AuthEndpointsTests
 
         // Assert - Should still return Ok for security (don't reveal if email exists)
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Ok"));
+        Assert.StartsWith("Ok", result.GetType().Name);
 
         await _authService.Received(1).RequestPasswordResetAsync(forgotPasswordDto, Arg.Any<CancellationToken>());
     }
@@ -473,7 +473,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Ok"));
+        Assert.StartsWith("Ok", result.GetType().Name);
 
         await _authService.Received(1).ResetPasswordAsync(resetPasswordDto, Arg.Any<CancellationToken>());
     }
@@ -496,7 +496,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("BadRequest"));
+        Assert.StartsWith("BadRequest", result.GetType().Name);
 
         await _authService.Received(1).ResetPasswordAsync(resetPasswordDto, Arg.Any<CancellationToken>());
     }
@@ -567,7 +567,7 @@ public class AuthEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _authService.Received(1).RefreshTokenAsync(refreshToken, Arg.Any<CancellationToken>());
     }

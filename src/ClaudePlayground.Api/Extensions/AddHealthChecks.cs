@@ -19,7 +19,7 @@ public static class HealthCheckExtensions
                 databaseNameFactory: _ => "ClaudePlayground",
                 name: "mongodb",
                 tags: ["ready", "db"])
-            .AddRedis( redisSettings.ConnectionString,
+            .AddRedis( redisSettings.ConnectionString ?? "localhost:6379",
                 name: "redis",
                 tags: ["ready", "cache"]);
     }
