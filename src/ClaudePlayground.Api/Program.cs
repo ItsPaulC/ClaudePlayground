@@ -13,7 +13,7 @@ ConfigurationManager config = builder.Configuration;
 config.BindConfigSection(out RedisSettings redisSettings);
 
 // Add health checks for MongoDB and Redis
-config.BindConfigSection(out  MongoDbSettings mongoDbSettings);
+config.BindConfigSection(out MongoDbSettings mongoDbSettings);
 builder.Services.AddHealthChecks(mongoDbSettings, redisSettings);
 
 // Add services to the container

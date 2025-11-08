@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
@@ -5,7 +6,6 @@ using ClaudePlayground.Domain.ValueObjects;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
-using System.Security.Claims;
 
 namespace ClaudePlayground.Api.Tests.Unit.Endpoints;
 
