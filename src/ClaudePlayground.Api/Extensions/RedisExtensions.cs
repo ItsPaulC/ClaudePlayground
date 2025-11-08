@@ -29,7 +29,7 @@ public static class RedisExtensions
         {
             redis = ConnectionMultiplexer.Connect(redisConnectionString);
 
-            if (redis == null || !redis.IsConnected)
+            if (redis is not { IsConnected: true })
             {
                 throw new InvalidOperationException("Redis connection was established but is not connected.");
             }
