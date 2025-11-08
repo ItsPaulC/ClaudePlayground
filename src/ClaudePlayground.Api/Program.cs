@@ -1,5 +1,7 @@
 using System.Text;
 using ClaudePlayground.Api.Endpoints;
+using ClaudePlayground.Api.Extensions;
+using ClaudePlayground.Api.Settings;
 using ClaudePlayground.Application;
 using ClaudePlayground.Application.Configuration;
 using ClaudePlayground.Infrastructure;
@@ -16,24 +18,12 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Add Aspire service defaults (observability, service discovery, resilience)
 builder.AddServiceDefaults();
+ConfigurationManager config = builder.Configuration;
+config.BindConfigSection(out RedisSettings redisSettings);
 
 // Add health checks for MongoDB and Redis
-string mongoConnectionString = builder.Configuration.GetConnectionString("mongodb")
-    ?? builder.Configuration["MongoDbSettings:ConnectionString"]
-    ?? "mongodb://localhost:27017";
-
-builder.Services.AddHealthChecks()
-    .AddMongoDb(
-        clientFactory: _ => new MongoDB.Driver.MongoClient(mongoConnectionString),
-        databaseNameFactory: _ => "ClaudePlayground",
-        name: "mongodb",
-        tags: ["ready", "db"])
-    .AddRedis(
-        builder.Configuration.GetConnectionString("redis")
-            ?? builder.Configuration["RedisSettings:ConnectionString"]
-            ?? "localhost:6379",
-        name: "redis",
-        tags: ["ready", "cache"]);
+config.BindConfigSection(out  MongoDbSettings mongoDbSettings);
+builder.Services.AddHealthChecks(mongoDbSettings, redisSettings);
 
 // Add services to the container
 builder.Services.AddEndpointsApiExplorer();
@@ -46,13 +36,13 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add JWT Authentication
-JwtSettings jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new();
+config.BindConfigSection(out JwtSettings jwtSettings);
 
 // Allow JWT secret to be overridden by environment variable for production security
-string jwtSecretKey = builder.Configuration["JWT_SECRET_KEY"] ?? jwtSettings.SecretKey;
+string jwtSecretKey = config["JWT_SECRET_KEY"] ?? jwtSettings.SecretKey;
 
 // Validate JWT secret key with strong cryptographic requirements
-if (string.IsNullOrEmpty(jwtSecretKey))
+if (string.IsNullOrEmpty(jwtSettings.SecretKey))
 {
     throw new InvalidOperationException(
         "JWT Secret Key is required. " +
@@ -114,10 +104,10 @@ builder.Services.AddAuthorization();
 
 // Configure Redis
 // Support both Aspire connection strings and traditional appsettings.json
-string redisConnectionString = builder.Configuration.GetConnectionString("redis")
-    ?? builder.Configuration["RedisSettings:ConnectionString"]
+string redisConnectionString = config.GetConnectionString("redis")
+    ?? redisSettings.ConnectionString
     ?? "localhost:6379";
-string redisInstanceName = builder.Configuration["RedisSettings:InstanceName"] ?? "ClaudePlayground:";
+
 
 // Connect to Redis with error handling
 IConnectionMultiplexer redis;
@@ -149,7 +139,7 @@ builder.Services.AddFusionCache()
         new RedisCache(new RedisCacheOptions
         {
             Configuration = redisConnectionString,
-            InstanceName = redisInstanceName
+            InstanceName = redisSettings.InstanceName
         })
     )
     .WithBackplane(
