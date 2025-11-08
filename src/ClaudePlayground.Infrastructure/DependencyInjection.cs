@@ -10,6 +10,7 @@ using ClaudePlayground.Infrastructure.Services;
 using ClaudePlayground.Infrastructure.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson.Serialization;
 
 namespace ClaudePlayground.Infrastructure;
 
@@ -52,7 +53,8 @@ public static class DependencyInjection
 
         // JWT Configuration
         JwtSettings jwtSettings = configuration.GetSection("JwtSettings").Get<JwtSettings>()
-            ?? new();
+            ?? throw new ApplicationException("JwtSettings not found");
+
         services.AddSingleton(jwtSettings);
 
         // Multi-Tenancy
