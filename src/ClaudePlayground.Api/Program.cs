@@ -166,7 +166,7 @@ using (IServiceScope? scope = app.Services.CreateScope())
         throw new InvalidOperationException("Failed to resolve MongoDbContext from service provider.");
     }
 
-    await dbContext.EnsureIndexesAsync();
+    await dbContext.EnsureIndexesAsync(CancellationToken.None);
 }
 
 // Configure the HTTP request pipeline

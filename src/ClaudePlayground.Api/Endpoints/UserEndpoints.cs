@@ -206,9 +206,9 @@ public static class UserEndpoints
                 {
                     // Invalidate cache
                     string tenantId = tenantProvider.GetTenantId() ?? "global";
-                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
-                    cache.Remove($"{UserByIdCacheKeyPrefix}{id}");
-                    cache.Remove($"{CurrentUserCacheKeyPrefix}{id}");
+                    cache.Remove($"{AllUsersCacheKey}:{tenantId}", token: ct);
+                    cache.Remove($"{UserByIdCacheKeyPrefix}{id}", token: ct);
+                    cache.Remove($"{CurrentUserCacheKeyPrefix}{id}", token: ct);
                     return Results.Ok(user);
                 },
                 onFailure: error => error.Type switch
@@ -234,9 +234,9 @@ public static class UserEndpoints
                 {
                     // Invalidate cache
                     string tenantId = tenantProvider.GetTenantId() ?? "global";
-                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
-                    cache.Remove($"{UserByIdCacheKeyPrefix}{id}");
-                    cache.Remove($"{CurrentUserCacheKeyPrefix}{id}");
+                    cache.Remove($"{AllUsersCacheKey}:{tenantId}", token: ct);
+                    cache.Remove($"{UserByIdCacheKeyPrefix}{id}", token: ct);
+                    cache.Remove($"{CurrentUserCacheKeyPrefix}{id}", token: ct);
                     return Results.NoContent();
                 },
                 onFailure: error => error.Type switch
