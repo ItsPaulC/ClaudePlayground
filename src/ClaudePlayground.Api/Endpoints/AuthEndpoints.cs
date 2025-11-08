@@ -16,13 +16,13 @@ public static class AuthEndpoints
 
         group.MapPost("/register", async (RegisterDto registerDto, IValidator<RegisterDto> validator, IAuthService authService, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(registerDto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(registerDto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            var result = await authService.RegisterAsync(registerDto, ct);
+            Result<AuthResponseDto> result = await authService.RegisterAsync(registerDto, ct);
 
             return result.Match(
                 onSuccess: response => Results.Ok(new
@@ -43,7 +43,7 @@ public static class AuthEndpoints
 
         group.MapGet("/verify-email", async (string token, IAuthService authService, CancellationToken ct) =>
         {
-            var result = await authService.VerifyEmailAsync(token, ct);
+            Result result = await authService.VerifyEmailAsync(token, ct);
 
             return result.Match(
                 onSuccess: () => Results.Ok(new { message = "Email verified successfully. You can now log in." }),
@@ -55,13 +55,13 @@ public static class AuthEndpoints
 
         group.MapPost("/login", async (LoginDto loginDto, IValidator<LoginDto> validator, IAuthService authService, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(loginDto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(loginDto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            var result = await authService.LoginAsync(loginDto, ct);
+            Result<AuthResponseDto> result = await authService.LoginAsync(loginDto, ct);
 
             return result.Match(
                 onSuccess: response => Results.Ok(response),
@@ -85,7 +85,7 @@ public static class AuthEndpoints
                 return Results.Unauthorized();
             }
 
-            var result = await authService.GetUserByEmailAsync(email, ct);
+            Result<UserDto> result = await authService.GetUserByEmailAsync(email, ct);
 
             return result.Match(
                 onSuccess: user => Results.Ok(user),
@@ -101,7 +101,7 @@ public static class AuthEndpoints
 
         group.MapPost("/change-password", async (ChangePasswordDto changePasswordDto, IValidator<ChangePasswordDto> validator, IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(changePasswordDto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(changePasswordDto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
@@ -114,7 +114,7 @@ public static class AuthEndpoints
                 return Results.Unauthorized();
             }
 
-            var result = await authService.ChangePasswordAsync(email, changePasswordDto, ct);
+            Result result = await authService.ChangePasswordAsync(email, changePasswordDto, ct);
 
             return result.Match(
                 onSuccess: () => Results.Ok(new { message = "Password changed successfully" }),
@@ -131,13 +131,13 @@ public static class AuthEndpoints
 
         group.MapPost("/forgot-password", async (ForgotPasswordDto forgotPasswordDto, IValidator<ForgotPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(forgotPasswordDto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(forgotPasswordDto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            var result = await authService.RequestPasswordResetAsync(forgotPasswordDto, ct);
+            Result result = await authService.RequestPasswordResetAsync(forgotPasswordDto, ct);
 
             // Always return success message for security (don't reveal if email exists)
             return Results.Ok(new { message = "If an account with that email exists, a password reset link has been sent." });
@@ -148,13 +148,13 @@ public static class AuthEndpoints
 
         group.MapPost("/reset-password", async (ResetPasswordDto resetPasswordDto, IValidator<ResetPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
         {
-            var validationResult = await validator.ValidateAsync(resetPasswordDto, ct);
+            FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(resetPasswordDto, ct);
             if (!validationResult.IsValid)
             {
                 return Results.ValidationProblem(validationResult.ToDictionary());
             }
 
-            var result = await authService.ResetPasswordAsync(resetPasswordDto, ct);
+            Result result = await authService.ResetPasswordAsync(resetPasswordDto, ct);
 
             return result.Match(
                 onSuccess: () => Results.Ok(new { message = "Password reset successfully. You can now log in with your new password." }),
@@ -166,7 +166,7 @@ public static class AuthEndpoints
 
         group.MapPost("/refresh", async (RefreshTokenDto refreshTokenDto, IAuthService authService, CancellationToken ct) =>
         {
-            var result = await authService.RefreshTokenAsync(refreshTokenDto.RefreshToken, ct);
+            Result<AuthResponseDto> result = await authService.RefreshTokenAsync(refreshTokenDto.RefreshToken, ct);
 
             return result.Match(
                 onSuccess: response => Results.Ok(response),

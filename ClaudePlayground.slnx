@@ -8,6 +8,7 @@
     <Project Path="src\ClaudePlayground.Infrastructure\ClaudePlayground.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ClaudePlayground.Api.Tests.Unit/ClaudePlayground.Api.Tests.Unit.csproj" />
     <Project Path="tests/ClaudePlayground.Application.Tests.Unit/ClaudePlayground.Application.Tests.Unit.csproj" />
     <Project Path="tests\ClaudePlayground.Infrastructure.Tests.Integration\ClaudePlayground.Infrastructure.Tests.Integration.csproj" />
   </Folder>

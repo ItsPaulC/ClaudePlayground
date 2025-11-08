@@ -40,7 +40,7 @@ public static class BusinessEndpoints
         // Get Business by ID - Authenticated users (tenant-scoped)
         group.MapGet("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
         {
-            var result = await service.GetByIdAsync(id, ct);
+            Result<BusinessDto> result = await service.GetByIdAsync(id, ct);
             return result.Match(
                 onSuccess: business => Results.Ok(business),
                 onFailure: error => error.Type switch
@@ -54,7 +54,7 @@ public static class BusinessEndpoints
 
         app.MapPost("/api/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
         {
-            var result = await service.CreateWithUserAsync(dto, ct);
+            Result<BusinessWithUserDto> result = await service.CreateWithUserAsync(dto, ct);
             return result.Match(
                 onSuccess: businessWithUser => Results.Created($"/api/businesses/{businessWithUser.Business.Id}", businessWithUser),
                 onFailure: error => error.Type switch
@@ -72,7 +72,7 @@ public static class BusinessEndpoints
         // Create Business - Super-user only
         group.MapPost("/", async (CreateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
         {
-            var result = await service.CreateAsync(dto, ct);
+            Result<BusinessDto> result = await service.CreateAsync(dto, ct);
             return result.Match(
                 onSuccess: business => Results.Created($"/api/businesses/{business.Id}", business),
                 onFailure: error => Results.BadRequest(new { error = error.Message }));
@@ -84,7 +84,7 @@ public static class BusinessEndpoints
         // Update Business - Super-user (any) or BusinessOwner (own tenant only)
         group.MapPut("/{id}", async (string id, UpdateBusinessDto dto, IBusinessService service, CancellationToken ct) =>
         {
-            var result = await service.UpdateAsync(id, dto, ct);
+            Result<BusinessDto> result = await service.UpdateAsync(id, dto, ct);
             return result.Match(
                 onSuccess: business => Results.Ok(business),
                 onFailure: error => error.Type switch
@@ -101,7 +101,7 @@ public static class BusinessEndpoints
         // Delete Business - Super-user only
         group.MapDelete("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
         {
-            var result = await service.DeleteAsync(id, ct);
+            Result result = await service.DeleteAsync(id, ct);
             return result.Match(
                 onSuccess: () => Results.NoContent(),
                 onFailure: error => error.Type switch
