@@ -30,7 +30,7 @@ public class MongoDbContext
         return await _client.StartSessionAsync(cancellationToken: cancellationToken);
     }
 
-    public async Task EnsureIndexesAsync()
+    public async Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
     {
         // User collection indexes
         IMongoCollection<User> usersCollection = GetCollection<User>("users");
@@ -81,7 +81,7 @@ public class MongoDbContext
             userTenantIndex,
             emailVerificationTokenIndex,
             passwordResetTokenIndex
-        ]);
+        ], cancellationToken);
 
         // Business collection indexes
         IMongoCollection<Business> businessCollection = GetCollection<Business>("businesses");
@@ -93,7 +93,7 @@ public class MongoDbContext
             new CreateIndexOptions { Name = "tenantId_idx" }
         );
 
-        await businessCollection.Indexes.CreateOneAsync(businessTenantIndex);
+        await businessCollection.Indexes.CreateOneAsync(businessTenantIndex, cancellationToken: cancellationToken);
 
         // RefreshToken collection indexes
         IMongoCollection<RefreshToken> refreshTokenCollection = GetCollection<RefreshToken>("refreshtokens");
@@ -126,6 +126,6 @@ public class MongoDbContext
             tokenIndex,
             userIdIndex,
             userIdRevokedIndex
-        ]);
+        ], cancellationToken);
     }
 }

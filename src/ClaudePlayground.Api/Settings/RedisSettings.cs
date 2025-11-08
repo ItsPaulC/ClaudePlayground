@@ -5,6 +5,6 @@ namespace ClaudePlayground.Api.Settings;
 
 public record RedisSettings
 {
-    public required string ConnectionString { get; set; }
+    public string? ConnectionString { get; set; }
     public required string InstanceName { get; set; }
 }

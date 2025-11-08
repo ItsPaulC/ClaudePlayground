@@ -94,7 +94,7 @@ public class UserEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _userService.Received(1).GetMeAsync(Arg.Any<CancellationToken>());
     }
@@ -166,7 +166,7 @@ public class UserEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _userService.Received(1).GetByIdAsync(userId, Arg.Any<CancellationToken>());
     }
@@ -251,7 +251,7 @@ public class UserEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("Conflict"));
+        Assert.StartsWith("Conflict", result.GetType().Name);
 
         await _userService.Received(1).CreateAsync(createDto, null, Arg.Any<CancellationToken>());
     }
@@ -382,7 +382,7 @@ public class UserEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _userService.Received(1).UpdateAsync(userId, updateDto, Arg.Any<CancellationToken>());
     }
@@ -443,7 +443,7 @@ public class UserEndpointsTests
 
         // Assert
         Assert.IsAssignableFrom<IResult>(result);
-        Assert.True(result.GetType().Name.StartsWith("NotFound"));
+        Assert.StartsWith("NotFound", result.GetType().Name);
 
         await _userService.Received(1).DeleteAsync(userId, Arg.Any<CancellationToken>());
     }
