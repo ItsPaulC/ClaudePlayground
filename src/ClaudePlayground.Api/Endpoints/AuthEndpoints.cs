@@ -1,3 +1,5 @@
+using Asp.Versioning;
+using Asp.Versioning.Builder;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Application.Validators;
@@ -11,7 +13,13 @@ public static class AuthEndpoints
 {
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/auth")
+        ApiVersionSet apiVersionSet = app.NewApiVersionSet()
+            .HasApiVersion(new ApiVersion(1, 0))
+            .ReportApiVersions()
+            .Build();
+
+        RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/auth")
+            .WithApiVersionSet(apiVersionSet)
             .WithTags("Authentication");
 
         group.MapPost("/register", async (RegisterDto registerDto, IValidator<RegisterDto> validator, IAuthService authService, CancellationToken ct) =>
