@@ -1,3 +1,5 @@
+using Asp.Versioning;
+using Asp.Versioning.Builder;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
@@ -8,7 +10,13 @@ public static class BusinessEndpoints
 {
     public static IEndpointRouteBuilder MapBusinessEndpoints(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/businesses")
+        ApiVersionSet apiVersionSet = app.NewApiVersionSet()
+            .HasApiVersion(new ApiVersion(1, 0))
+            .ReportApiVersions()
+            .Build();
+
+        RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/businesses")
+            .WithApiVersionSet(apiVersionSet)
             .WithTags("Businesses")
             .RequireAuthorization();
 
@@ -52,11 +60,11 @@ public static class BusinessEndpoints
         .WithName("GetBusinessById")
         .WithOpenApi();
 
-        app.MapPost("/api/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
+        app.MapPost("/api/v{version:apiVersion}/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
         {
             Result<BusinessWithUserDto> result = await service.CreateWithUserAsync(dto, ct);
             return result.Match(
-                onSuccess: businessWithUser => Results.Created($"/api/businesses/{businessWithUser.Business.Id}", businessWithUser),
+                onSuccess: businessWithUser => Results.Created($"/api/v1.0/businesses/{businessWithUser.Business.Id}", businessWithUser),
                 onFailure: error => error.Type switch
                 {
                     ErrorType.Conflict => Results.Conflict(new { error = error.Message }),
@@ -66,6 +74,7 @@ public static class BusinessEndpoints
         })
         .WithName("CreateBusinessWithUser")
         .WithOpenApi()
+        .WithApiVersionSet(apiVersionSet)
         .WithTags("Businesses")
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
@@ -74,7 +83,7 @@ public static class BusinessEndpoints
         {
             Result<BusinessDto> result = await service.CreateAsync(dto, ct);
             return result.Match(
-                onSuccess: business => Results.Created($"/api/businesses/{business.Id}", business),
+                onSuccess: business => Results.Created($"/api/v1.0/businesses/{business.Id}", business),
                 onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("CreateBusiness")
