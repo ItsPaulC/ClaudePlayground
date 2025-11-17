@@ -1,3 +1,5 @@
+using Asp.Versioning;
+using Asp.Versioning.Builder;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;
@@ -15,7 +17,13 @@ public static class UserEndpoints
 
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/users")
+        ApiVersionSet apiVersionSet = app.NewApiVersionSet()
+            .HasApiVersion(new ApiVersion(1, 0))
+            .ReportApiVersions()
+            .Build();
+
+        RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/users")
+            .WithApiVersionSet(apiVersionSet)
             .WithTags("Users")
             .RequireAuthorization();
 
@@ -152,7 +160,7 @@ public static class UserEndpoints
                     // Invalidate cache
                     string tenantId = tenantProvider.GetTenantId() ?? "global";
                     cache.Remove($"{AllUsersCacheKey}:{tenantId}");
-                    return Results.Created($"/api/users/{user.Id}", user);
+                    return Results.Created($"/api/v1.0/users/{user.Id}", user);
                 },
                 onFailure: error => error.Type switch
                 {
@@ -182,7 +190,7 @@ public static class UserEndpoints
                 {
                     // Invalidate cache for the target tenant
                     cache.Remove($"{AllUsersCacheKey}:{tenantId}");
-                    return Results.Created($"/api/users/{user.Id}", user);
+                    return Results.Created($"/api/v1.0/users/{user.Id}", user);
                 },
                 onFailure: error => error.Type switch
                 {
