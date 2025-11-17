@@ -46,7 +46,6 @@ public static class AuthEndpoints
                 });
         })
         .WithName("Register")
-        .WithOpenApi()
         .AllowAnonymous();
 
         group.MapGet("/verify-email", async (string token, IAuthService authService, CancellationToken ct) =>
@@ -58,7 +57,6 @@ public static class AuthEndpoints
                 onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("VerifyEmail")
-        .WithOpenApi()
         .AllowAnonymous();
 
         group.MapPost("/login", async (LoginDto loginDto, IValidator<LoginDto> validator, IAuthService authService, CancellationToken ct) =>
@@ -81,7 +79,6 @@ public static class AuthEndpoints
                 });
         })
         .WithName("Login")
-        .WithOpenApi()
         .AllowAnonymous();
 
         group.MapGet("/me", async (IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
@@ -104,7 +101,6 @@ public static class AuthEndpoints
                 });
         })
         .WithName("GetCurrentUser")
-        .WithOpenApi()
         .RequireAuthorization();
 
         group.MapPost("/change-password", async (ChangePasswordDto changePasswordDto, IValidator<ChangePasswordDto> validator, IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
@@ -134,7 +130,6 @@ public static class AuthEndpoints
                 });
         })
         .WithName("ChangePassword")
-        .WithOpenApi()
         .RequireAuthorization();
 
         group.MapPost("/forgot-password", async (ForgotPasswordDto forgotPasswordDto, IValidator<ForgotPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
@@ -151,7 +146,6 @@ public static class AuthEndpoints
             return Results.Ok(new { message = "If an account with that email exists, a password reset link has been sent." });
         })
         .WithName("ForgotPassword")
-        .WithOpenApi()
         .AllowAnonymous();
 
         group.MapPost("/reset-password", async (ResetPasswordDto resetPasswordDto, IValidator<ResetPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
@@ -169,7 +163,6 @@ public static class AuthEndpoints
                 onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("ResetPassword")
-        .WithOpenApi()
         .AllowAnonymous();
 
         group.MapPost("/refresh", async (RefreshTokenDto refreshTokenDto, IAuthService authService, CancellationToken ct) =>
@@ -186,7 +179,6 @@ public static class AuthEndpoints
                 });
         })
         .WithName("RefreshToken")
-        .WithOpenApi()
         .AllowAnonymous();
 
         return app;
