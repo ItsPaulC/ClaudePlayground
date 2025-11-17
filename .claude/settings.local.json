@@ -18,7 +18,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.nuget.org)",
       "Bash(del:*)",
-      "Bash(dotnet list:*)"
+      "Bash(dotnet list:*)",
+      "Bash(dotnet clean:*)"
     ],
     "deny": [],
     "ask": []

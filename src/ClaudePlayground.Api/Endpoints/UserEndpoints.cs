@@ -51,7 +51,6 @@ public static class UserEndpoints
             }
         })
         .WithName("GetAllUsers")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Get Paginated Users - SuperUser and BusinessOwner only
@@ -86,7 +85,6 @@ public static class UserEndpoints
             }
         })
         .WithName("GetPagedUsers")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Get Current User - Any authenticated user can get their own information
@@ -116,8 +114,7 @@ public static class UserEndpoints
                     _ => Results.BadRequest(new { error = error.Message })
                 });
         })
-        .WithName("GetMe")
-        .WithOpenApi();
+        .WithName("GetMe");
 
         // Get User by ID - SuperUser and BusinessOwner can view users, regular users can only view themselves
         group.MapGet("/{id}", async (string id, IUserService service, IFusionCache cache, CancellationToken ct) =>
@@ -140,8 +137,7 @@ public static class UserEndpoints
                     _ => Results.BadRequest(new { error = error.Message })
                 });
         })
-        .WithName("GetUserById")
-        .WithOpenApi();
+        .WithName("GetUserById");
 
         // Create User - Super-user can create any role, BusinessOwner can create User/ReadOnlyUser in their tenant
         group.MapPost("/", async (CreateUserDto dto, IValidator<CreateUserDto> validator, IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
@@ -171,7 +167,6 @@ public static class UserEndpoints
                 });
         })
         .WithName("CreateUser")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Create User in Specific Tenant - Super-user only (cross-tenant user creation)
@@ -201,7 +196,6 @@ public static class UserEndpoints
                 });
         })
         .WithName("CreateUserInTenant")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Update User - Super-user (any) or BusinessOwner (own tenant only)
@@ -229,7 +223,6 @@ public static class UserEndpoints
                 });
         })
         .WithName("UpdateUser")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Delete User - Super-user (any) or BusinessOwner (own tenant only)
@@ -255,7 +248,6 @@ public static class UserEndpoints
                 });
         })
         .WithName("DeleteUser")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         return app;

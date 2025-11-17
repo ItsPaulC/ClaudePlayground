@@ -27,7 +27,6 @@ public static class BusinessEndpoints
             return Results.Ok(businesses);
         })
         .WithName("GetAllBusinesses")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Get Paginated Businesses - Authenticated users (tenant-scoped for non-SuperUsers)
@@ -42,8 +41,7 @@ public static class BusinessEndpoints
             PagedResult<BusinessDto> businesses = await service.GetPagedAsync(page, pageSize, sortBy, sortDescending, ct);
             return Results.Ok(businesses);
         })
-        .WithName("GetPagedBusinesses")
-        .WithOpenApi();
+        .WithName("GetPagedBusinesses");
 
         // Get Business by ID - Authenticated users (tenant-scoped)
         group.MapGet("/{id}", async (string id, IBusinessService service, CancellationToken ct) =>
@@ -57,8 +55,7 @@ public static class BusinessEndpoints
                     _ => Results.BadRequest(new { error = error.Message })
                 });
         })
-        .WithName("GetBusinessById")
-        .WithOpenApi();
+        .WithName("GetBusinessById");
 
         app.MapPost("/api/v{version:apiVersion}/businesses/with-user", async (CreateBusinessWithUserDto dto, IBusinessService service, CancellationToken ct) =>
         {
@@ -73,7 +70,6 @@ public static class BusinessEndpoints
                 });
         })
         .WithName("CreateBusinessWithUser")
-        .WithOpenApi()
         .WithApiVersionSet(apiVersionSet)
         .WithTags("Businesses")
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
@@ -87,7 +83,6 @@ public static class BusinessEndpoints
                 onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("CreateBusiness")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         // Update Business - Super-user (any) or BusinessOwner (own tenant only)
@@ -104,7 +99,6 @@ public static class BusinessEndpoints
                 });
         })
         .WithName("UpdateBusiness")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue, Roles.BusinessOwnerValue));
 
         // Delete Business - Super-user only
@@ -121,7 +115,6 @@ public static class BusinessEndpoints
                 });
         })
         .WithName("DeleteBusiness")
-        .WithOpenApi()
         .RequireAuthorization(policy => policy.RequireRole(Roles.SuperUserValue));
 
         return app;
