@@ -12,7 +12,7 @@ var redis = builder.AddRedis("redis")
 
 // Add the API project with MongoDB connection string
 var mongoEndpoint = mongodb.GetEndpoint("tcp");
-builder.AddProject<Projects.ClaudePlayground_Api>("api")
+builder.AddProject<Projects.Api>("api")
     .WithEnvironment("ConnectionStrings__mongodb",
         ReferenceExpression.Create($"mongodb://{mongoEndpoint.Property(EndpointProperty.Host)}:{mongoEndpoint.Property(EndpointProperty.Port)}"))
     .WithReference(redis)

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,6 +19,7 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Testcontainers.MongoDb" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,9 +27,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ClaudePlayground.Api\ClaudePlayground.Api.csproj" />
-    <ProjectReference Include="..\..\src\ClaudePlayground.Application\ClaudePlayground.Application.csproj" />
-    <ProjectReference Include="..\..\src\ClaudePlayground.Domain\ClaudePlayground.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Domain\Domain.csproj" />
   </ItemGroup>
 
 </Project>
