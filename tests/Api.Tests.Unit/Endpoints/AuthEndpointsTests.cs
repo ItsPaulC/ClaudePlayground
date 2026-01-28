@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using ClaudePlayground.Application.DTOs;
 using ClaudePlayground.Application.Interfaces;
 using ClaudePlayground.Domain.Common;

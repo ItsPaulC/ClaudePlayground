@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\ClaudePlayground.Domain\ClaudePlayground.Domain.csproj" />
+    <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="ClaudePlayground.Application.Tests.Unit" />
+    <InternalsVisibleTo Include="Application.Tests.Unit" />
   </ItemGroup>
 
 </Project>

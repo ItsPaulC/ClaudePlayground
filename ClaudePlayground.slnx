@@ -1,15 +1,15 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/ClaudePlayground.AppHost/ClaudePlayground.AppHost.csproj" />
-    <Project Path="src/ClaudePlayground.ServiceDefaults/ClaudePlayground.ServiceDefaults.csproj" />
-    <Project Path="src\ClaudePlayground.Api\ClaudePlayground.Api.csproj" />
-    <Project Path="src\ClaudePlayground.Application\ClaudePlayground.Application.csproj" />
-    <Project Path="src\ClaudePlayground.Domain\ClaudePlayground.Domain.csproj" />
-    <Project Path="src\ClaudePlayground.Infrastructure\ClaudePlayground.Infrastructure.csproj" />
+    <Project Path="src/Api/Api.csproj" />
+    <Project Path="src/AppHost/AppHost.csproj" />
+    <Project Path="src/Application/Application.csproj" />
+    <Project Path="src/Domain/Domain.csproj" />
+    <Project Path="src/Infrastructure/Infrastructure.csproj" />
+    <Project Path="src/ServiceDefaults/ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/ClaudePlayground.Api.Tests.Unit/ClaudePlayground.Api.Tests.Unit.csproj" />
-    <Project Path="tests/ClaudePlayground.Application.Tests.Unit/ClaudePlayground.Application.Tests.Unit.csproj" />
-    <Project Path="tests\ClaudePlayground.Infrastructure.Tests.Integration\ClaudePlayground.Infrastructure.Tests.Integration.csproj" />
+    <Project Path="tests/Api.Tests.Unit/Api.Tests.Unit.csproj" />
+    <Project Path="tests/Application.Tests.Unit/Application.Tests.Unit.csproj" />
+    <Project Path="tests/Infrastructure.Tests.Integration/Infrastructure.Tests.Integration.csproj" />
   </Folder>
 </Solution>

@@ -19,8 +19,8 @@
     <PackageReference Include="AspNetCore.HealthChecks.Redis" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ClaudePlayground.Application\ClaudePlayground.Application.csproj" />
-    <ProjectReference Include="..\ClaudePlayground.Infrastructure\ClaudePlayground.Infrastructure.csproj" />
-    <ProjectReference Include="..\ClaudePlayground.ServiceDefaults\ClaudePlayground.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Application\Application.csproj" />
+    <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+    <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>
