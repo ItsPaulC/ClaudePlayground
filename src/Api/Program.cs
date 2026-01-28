@@ -109,6 +109,50 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+// Configure request size limits to prevent DoS attacks via large payloads
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB limit for file uploads
+});
+
+builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10MB limit for request bodies
+});
+
+// Configure CORS for cross-origin requests
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ApiPolicy", policy =>
+    {
+        if (builder.Environment.IsDevelopment())
+        {
+            // Development: Allow any origin for easy local testing
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            // Production: Require specific allowed origins from configuration
+            // Set AllowedOrigins in appsettings.json or environment variable
+            string allowedOrigins = config["AllowedOrigins"] ?? "";
+            if (!string.IsNullOrEmpty(allowedOrigins))
+            {
+                policy.WithOrigins(allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                      .AllowCredentials()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            }
+            else
+            {
+                // No origins configured - create restrictive policy that denies all cross-origin requests
+                policy.WithOrigins(); // Empty origins list = deny all CORS requests
+            }
+        }
+    });
+});
+
 // Add Application (includes validators)
 builder.Services.AddApplication();
 
@@ -137,6 +181,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enable CORS (must be before UseRateLimiter, UseAuthentication, UseAuthorization)
+app.UseCors("ApiPolicy");
 
 // Enable rate limiting middleware
 app.UseRateLimiter();
