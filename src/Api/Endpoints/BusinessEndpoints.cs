@@ -8,6 +8,17 @@ namespace ClaudePlayground.Api.Endpoints;
 
 public static class BusinessEndpoints
 {
+    // Whitelist of allowed sort fields to prevent NoSQL injection
+    private static readonly HashSet<string> AllowedBusinessSortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id",
+        "name",
+        "email",
+        "phonenumber",
+        "createdat",
+        "updatedat"
+    };
+
     public static IEndpointRouteBuilder MapBusinessEndpoints(this IEndpointRouteBuilder app)
     {
         ApiVersionSet apiVersionSet = app.NewApiVersionSet()
@@ -38,6 +49,23 @@ public static class BusinessEndpoints
             IBusinessService service,
             CancellationToken ct) =>
         {
+            // Validate pagination parameters
+            if (page < 1)
+            {
+                return Results.BadRequest(new { error = "Page must be greater than or equal to 1" });
+            }
+
+            if (pageSize < 1 || pageSize > 100)
+            {
+                return Results.BadRequest(new { error = "PageSize must be between 1 and 100" });
+            }
+
+            // Validate sortBy parameter to prevent NoSQL injection
+            if (!string.IsNullOrEmpty(sortBy) && !AllowedBusinessSortFields.Contains(sortBy))
+            {
+                return Results.BadRequest(new { error = $"Invalid sort field. Allowed fields: {string.Join(", ", AllowedBusinessSortFields)}" });
+            }
+
             PagedResult<BusinessDto> businesses = await service.GetPagedAsync(page, pageSize, sortBy, sortDescending, ct);
             return Results.Ok(businesses);
         })

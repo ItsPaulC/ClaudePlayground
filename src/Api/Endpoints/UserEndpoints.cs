@@ -15,6 +15,19 @@ public static class UserEndpoints
     private const string UserByIdCacheKeyPrefix = "users:id:";
     private const string CurrentUserCacheKeyPrefix = "users:me:";
 
+    // Whitelist of allowed sort fields to prevent NoSQL injection
+    private static readonly HashSet<string> AllowedUserSortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id",
+        "email",
+        "firstname",
+        "lastname",
+        "isactive",
+        "createdat",
+        "updatedat",
+        "lastloginat"
+    };
+
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         ApiVersionSet apiVersionSet = app.NewApiVersionSet()
@@ -64,6 +77,23 @@ public static class UserEndpoints
             ITenantProvider tenantProvider,
             CancellationToken ct) =>
         {
+            // Validate pagination parameters
+            if (page < 1)
+            {
+                return Results.BadRequest(new { error = "Page must be greater than or equal to 1" });
+            }
+
+            if (pageSize < 1 || pageSize > 100)
+            {
+                return Results.BadRequest(new { error = "PageSize must be between 1 and 100" });
+            }
+
+            // Validate sortBy parameter to prevent NoSQL injection
+            if (!string.IsNullOrEmpty(sortBy) && !AllowedUserSortFields.Contains(sortBy))
+            {
+                return Results.BadRequest(new { error = $"Invalid sort field. Allowed fields: {string.Join(", ", AllowedUserSortFields)}" });
+            }
+
             try
             {
                 // Include tenant, page, pageSize, sortBy, sortDescending in cache key
