@@ -29,7 +29,8 @@ public static class BusinessEndpoints
         RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/businesses")
             .WithApiVersionSet(apiVersionSet)
             .WithTags("Businesses")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting("api");
 
         // Get All Businesses - Super-user only (cross-tenant access)
         group.MapGet("/", async (IBusinessService service, CancellationToken ct) =>

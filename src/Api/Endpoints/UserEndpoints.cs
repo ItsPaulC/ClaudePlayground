@@ -38,7 +38,8 @@ public static class UserEndpoints
         RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/users")
             .WithApiVersionSet(apiVersionSet)
             .WithTags("Users")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting("api");
 
         // Get All Users - SuperUser and BusinessOwner only
         group.MapGet("/", async (IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
