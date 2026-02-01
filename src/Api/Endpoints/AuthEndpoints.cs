@@ -46,6 +46,7 @@ public static class AuthEndpoints
                 });
         })
         .WithName("Register")
+        .RequireRateLimiting("auth")
         .AllowAnonymous();
 
         group.MapGet("/verify-email", async (string token, IAuthService authService, CancellationToken ct) =>
@@ -79,6 +80,7 @@ public static class AuthEndpoints
                 });
         })
         .WithName("Login")
+        .RequireRateLimiting("auth")
         .AllowAnonymous();
 
         group.MapGet("/me", async (IAuthService authService, HttpContext httpContext, CancellationToken ct) =>
@@ -146,6 +148,7 @@ public static class AuthEndpoints
             return Results.Ok(new { message = "If an account with that email exists, a password reset link has been sent." });
         })
         .WithName("ForgotPassword")
+        .RequireRateLimiting("password-reset")
         .AllowAnonymous();
 
         group.MapPost("/reset-password", async (ResetPasswordDto resetPasswordDto, IValidator<ResetPasswordDto> validator, IAuthService authService, CancellationToken ct) =>
@@ -163,6 +166,7 @@ public static class AuthEndpoints
                 onFailure: error => Results.BadRequest(new { error = error.Message }));
         })
         .WithName("ResetPassword")
+        .RequireRateLimiting("password-reset")
         .AllowAnonymous();
 
         group.MapPost("/refresh", async (RefreshTokenDto refreshTokenDto, IAuthService authService, CancellationToken ct) =>
@@ -179,6 +183,7 @@ public static class AuthEndpoints
                 });
         })
         .WithName("RefreshToken")
+        .RequireRateLimiting("auth")
         .AllowAnonymous();
 
         return app;

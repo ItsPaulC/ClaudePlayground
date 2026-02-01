@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Asp.Versioning;
 using Asp.Versioning.Builder;
 using ClaudePlayground.Application.DTOs;
@@ -15,6 +17,32 @@ public static class UserEndpoints
     private const string UserByIdCacheKeyPrefix = "users:id:";
     private const string CurrentUserCacheKeyPrefix = "users:me:";
 
+    // Whitelist of allowed sort fields to prevent NoSQL injection
+    private static readonly HashSet<string> AllowedUserSortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id",
+        "email",
+        "firstname",
+        "lastname",
+        "isactive",
+        "createdat",
+        "updatedat",
+        "lastloginat"
+    };
+
+    /// <summary>
+    /// Hashes a tenant ID to prevent information disclosure in cache keys.
+    /// Uses SHA256 to create a consistent, non-reversible hash.
+    /// </summary>
+    private static string HashTenantId(string tenantId)
+    {
+        if (string.IsNullOrEmpty(tenantId))
+            return "global";
+
+        byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(tenantId));
+        return Convert.ToHexString(hashBytes)[..16]; // Use first 16 characters for brevity
+    }
+
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         ApiVersionSet apiVersionSet = app.NewApiVersionSet()
@@ -25,16 +53,18 @@ public static class UserEndpoints
         RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/users")
             .WithApiVersionSet(apiVersionSet)
             .WithTags("Users")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting("api");
 
         // Get All Users - SuperUser and BusinessOwner only
         group.MapGet("/", async (IUserService service, IFusionCache cache, ITenantProvider tenantProvider, CancellationToken ct) =>
         {
             try
             {
-                // Include tenant in cache key to ensure tenant isolation
+                // Include hashed tenant ID in cache key to ensure tenant isolation without exposing tenant info
                 string tenantId = tenantProvider.GetTenantId() ?? "global";
-                string cacheKey = $"{AllUsersCacheKey}:{tenantId}";
+                string hashedTenantId = HashTenantId(tenantId);
+                string cacheKey = $"{AllUsersCacheKey}:{hashedTenantId}";
 
                 IEnumerable<UserDto> users = await cache.GetOrSetAsync<IEnumerable<UserDto>>(
                     cacheKey,
@@ -64,11 +94,29 @@ public static class UserEndpoints
             ITenantProvider tenantProvider,
             CancellationToken ct) =>
         {
+            // Validate pagination parameters
+            if (page < 1)
+            {
+                return Results.BadRequest(new { error = "Page must be greater than or equal to 1" });
+            }
+
+            if (pageSize < 1 || pageSize > 100)
+            {
+                return Results.BadRequest(new { error = "PageSize must be between 1 and 100" });
+            }
+
+            // Validate sortBy parameter to prevent NoSQL injection
+            if (!string.IsNullOrEmpty(sortBy) && !AllowedUserSortFields.Contains(sortBy))
+            {
+                return Results.BadRequest(new { error = $"Invalid sort field. Allowed fields: {string.Join(", ", AllowedUserSortFields)}" });
+            }
+
             try
             {
-                // Include tenant, page, pageSize, sortBy, sortDescending in cache key
+                // Include hashed tenant ID in cache key to prevent information disclosure
                 string tenantId = tenantProvider.GetTenantId() ?? "global";
-                string cacheKey = $"users:paged:{tenantId}:{page}:{pageSize}:{sortBy}:{sortDescending}";
+                string hashedTenantId = HashTenantId(tenantId);
+                string cacheKey = $"users:paged:{hashedTenantId}:{page}:{pageSize}:{sortBy}:{sortDescending}";
 
                 PagedResult<UserDto> users = await cache.GetOrSetAsync<PagedResult<UserDto>>(
                     cacheKey,
@@ -153,9 +201,10 @@ public static class UserEndpoints
             return result.Match(
                 onSuccess: user =>
                 {
-                    // Invalidate cache
+                    // Invalidate cache using hashed tenant ID
                     string tenantId = tenantProvider.GetTenantId() ?? "global";
-                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
+                    string hashedTenantId = HashTenantId(tenantId);
+                    cache.Remove($"{AllUsersCacheKey}:{hashedTenantId}");
                     return Results.Created($"/api/v1.0/users/{user.Id}", user);
                 },
                 onFailure: error => error.Type switch
@@ -183,8 +232,9 @@ public static class UserEndpoints
             return result.Match(
                 onSuccess: user =>
                 {
-                    // Invalidate cache for the target tenant
-                    cache.Remove($"{AllUsersCacheKey}:{tenantId}");
+                    // Invalidate cache for the target tenant using hashed tenant ID
+                    string hashedTenantId = HashTenantId(tenantId);
+                    cache.Remove($"{AllUsersCacheKey}:{hashedTenantId}");
                     return Results.Created($"/api/v1.0/users/{user.Id}", user);
                 },
                 onFailure: error => error.Type switch
@@ -206,9 +256,10 @@ public static class UserEndpoints
             return result.Match(
                 onSuccess: user =>
                 {
-                    // Invalidate cache
+                    // Invalidate cache using hashed tenant ID
                     string tenantId = tenantProvider.GetTenantId() ?? "global";
-                    cache.Remove($"{AllUsersCacheKey}:{tenantId}", token: ct);
+                    string hashedTenantId = HashTenantId(tenantId);
+                    cache.Remove($"{AllUsersCacheKey}:{hashedTenantId}", token: ct);
                     cache.Remove($"{UserByIdCacheKeyPrefix}{id}", token: ct);
                     cache.Remove($"{CurrentUserCacheKeyPrefix}{id}", token: ct);
                     return Results.Ok(user);
@@ -233,9 +284,10 @@ public static class UserEndpoints
             return result.Match(
                 onSuccess: () =>
                 {
-                    // Invalidate cache
+                    // Invalidate cache using hashed tenant ID
                     string tenantId = tenantProvider.GetTenantId() ?? "global";
-                    cache.Remove($"{AllUsersCacheKey}:{tenantId}", token: ct);
+                    string hashedTenantId = HashTenantId(tenantId);
+                    cache.Remove($"{AllUsersCacheKey}:{hashedTenantId}", token: ct);
                     cache.Remove($"{UserByIdCacheKeyPrefix}{id}", token: ct);
                     cache.Remove($"{CurrentUserCacheKeyPrefix}{id}", token: ct);
                     return Results.NoContent();
